@@ -2,7 +2,7 @@
 .clasp.json
 .clasprc.json
 .claspignore
-appsscript.json
+src/appsscript.json
 
 # Ignore node_modules directory
 node_modules/

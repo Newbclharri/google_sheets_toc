@@ -8,7 +8,7 @@
 
 /////////GLOBAL SERVICES STORED ACCESS THROUGH THE CLOSURE FUNCTION//////////////
 const getSpreadsheetApp = getService('SpreadsheetApp');
-const getPropsService = getService('PropertiesService');
+const getPropsServ = getService('PropertiesService'); //returns the an anonymous function
 const getScriptApp = getService("ScriptApp")
 
 // ... use getSpreadsheetApp and getUrlFetchApp as needed
@@ -34,7 +34,3 @@ function getService(serviceName) {
   }
   return undefined;
 }
-
-
-
-
