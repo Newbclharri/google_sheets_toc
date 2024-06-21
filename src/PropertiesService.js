@@ -10,10 +10,7 @@ class PropertiesServiceStorage {
   };
 
   load(){
-    const data = PropertiesService.getScriptProperties().getProperty(this.key)
-    if(!data){
-      return null
-    };
+    const data = PropertiesService.getScriptProperties().getProperty("tocSheet");
     return JSON.parse(data);
   }  
 }

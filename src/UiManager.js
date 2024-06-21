@@ -29,14 +29,15 @@ class UiUtil{
 
 function start(){
   const uI = getSpreadsheetApp().getUi()
-  const sheet = undefined//JSON.parse(getPropsService().getScriptProperties().getProperty("sheet"))
-  //console.log("sheet from props service: ", sheet)
-  if(!sheet){
+  const loaded = TocSheet.load();
+  if(loaded){
+    TocSheet.setTocAsActiveSheet(loaded);
+  }else{
     const spreadsheetApp = new SpreadsheetUtility();
     const propsService = new PropertiesServiceStorage();
-    const myToc = new TocSheet(spreadsheetApp, propsService);
+    const myToc = new TocSheet({},spreadsheetApp, propsService);
     myToc.save();
-    uI.alert("sheet created")
+    uI.alert("sheet created");    
   }  
 }
 
