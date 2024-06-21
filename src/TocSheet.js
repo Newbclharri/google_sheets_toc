@@ -1,7 +1,7 @@
 class TocSheet {
   
   constructor(name, titles, spreadsheetApp, propsService){
-    console.log("From Toc: Spreadsheet: ", spreadsheetApp, propsService)
+    //console.log("From Toc: Spreadsheet: ", spreadsheetApp, propsService)
     this.state = {};   
     this.state.name = name || "Table of Contents";
     this.spreadsheetApp = spreadsheetApp || new SpreadsheetUtility();
@@ -19,6 +19,10 @@ class TocSheet {
   static load(){
     const storage = new PropertiesServiceStorage();
     storage.load();
+  }
+
+  save(){
+    this.propsService.save(this.state)
   }
 
   initialize(){

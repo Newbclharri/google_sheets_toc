@@ -6,7 +6,7 @@ class PropertiesServiceStorage {
 
   save(tocData){
     const data = JSON.stringify(tocData)
-    PropertiesService.getScriptProperties().setProperty(this.key, data)
+    return PropertiesService.getScriptProperties().setProperty(this.key, data)
   };
 
   load(){

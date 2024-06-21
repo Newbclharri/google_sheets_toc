@@ -35,10 +35,9 @@ function start(){
     const spreadsheetApp = new SpreadsheetUtility();
     const propsService = new PropertiesServiceStorage();
     const myToc = new TocSheet(spreadsheetApp, propsService);
+    myToc.save();
     uI.alert("sheet created")
-    console.log(myToc)
-  }
-  
+  }  
 }
 
 // function setFalse(){
