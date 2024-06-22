@@ -30,14 +30,18 @@ class UiUtil{
 function start(){
   const uI = getSpreadsheetApp().getUi()
   const loaded = TocSheet.load();
-  if(loaded){
+  if(false){
     TocSheet.setTocAsActiveSheet(loaded);
   }else{
     const spreadsheetApp = new SpreadsheetUtility();
     const propsService = new PropertiesServiceStorage();
     const myToc = new TocSheet({},spreadsheetApp, propsService);
+    myToc.initialize();
+    myToc.formatSheet();
     myToc.save();
-    uI.alert("sheet created");    
+    TocSheet.setTocAsActiveSheet(myToc);
+    //uI.alert("sheet created");
+
   }  
 }
 

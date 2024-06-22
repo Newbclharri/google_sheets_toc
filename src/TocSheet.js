@@ -1,8 +1,7 @@
 class TocSheet {
   
-  constructor({name, titles, sheetId, rangeHeader, rangeToc}, spreadsheetApp, propsService){
-    //console.log("From Toc: Spreadsheet: ", spreadsheetApp, propsService)
-    this.spreadsheetApp = spreadsheetApp || new SpreadsheetUtility();
+  constructor({name, titles, sheetId, rangeHeader, rangeToc}, spreadsheet, propsService){
+    this.spreadsheet = spreadsheet || new SpreadsheetUtility();
     this.propsService = propsService || new PropertiesServiceStorage();
     this.state = {};
     this.name = name|| "Table of Contents";
@@ -10,7 +9,7 @@ class TocSheet {
     this.sheetId = sheetId || null;
     this.rangeHeader = rangeHeader;
     this.rangeToc = rangeToc;
-    this.initialize();
+    //this.initialize();
   }
 
   static load(){
@@ -23,36 +22,55 @@ class TocSheet {
     ssApp.setActiveSheet(sheet);
   }
 
+  static isEmptyObject(obj){
+    return Object.entries(obj).length === 0;
+  }
+
   save(){
     this.propsService.save(this)
   }
 
   initialize(){
     this.createSheet();
-    this.setSheetId();
+    this.setContentIds();
     this.setTitles();
+    this.setSheetLinks();
     this.setNamedRanges();
-    //setTitleLinks();
+  }
+  
+  formatSheet(){    
+    this.pasteHeader();
+    this.setFrozenRows(1);
+    this.pasteSheetLinks();
   }
   
   
   createSheet(){
-    const sheet = this.spreadsheetApp.insertSheet(this.name)
+    const sheet = this.spreadsheet.insertSheet(this.name)
     this.sheet = sheet;
+    this.sheetId = sheet.getSheetId();
+  }
+  
+  setSheetId(){    
+    this.sheetId = this.sheet.getSheetId();    
   }
 
-  setSheetId(){
-
-    if(!this.sheetID){
-      this.sheetId = this.sheet.getSheetId();
+  setContentIds(){
+    if(!this.contentIds){
+      this.contentIds = this.spreadsheet.getSheetIdsNotEqualTo(this.sheetId);
     }
   }
+  setSheetLinks(){
+    this.links = this.spreadsheet.createSheetLinks(this.contentIds, false, true)
+  }
+  
+  
 
   setTitles(titles = null){
     if(titles || this.titles){
       this.titles = titles
     }else{
-      const sheets = this.spreadsheetApp.getSheets();
+      const sheets = this.spreadsheet.getSheets();
       const sheetId = this.sheetId;
       const titles = sheets.filter(sheet => sheet.getSheetId() !== sheetId)
                       .map(sheet => sheet.getName());
@@ -66,8 +84,44 @@ class TocSheet {
     const rangeToc = this.sheet.getRange(2,1,numRows)
     if(!this.rangeHeaderName) this.rangeHeaderName = "TOCHeader";
     if(!this.rangeTocName) this.rangeTocName = "TOC";
-    this.spreadsheetApp.setNamedRange(this.rangeHeaderName, rangeHeader)
-    this.spreadsheetApp.setNamedRange(this.rangeTocName, rangeToc)
+    this.spreadsheet.setNamedRange(this.rangeHeaderName, rangeHeader)
+    this.spreadsheet.setNamedRange(this.rangeTocName, rangeToc)
   };
 
+  getSheet(){
+    //if sheet object is not empty return this.sheet
+    if(!TocSheet.isEmptyObject(this.sheet)){
+      return this.sheet;
+    }else{
+      //if the sheet object is empty getSheet from SpreadsheetUtility
+      return this.spreadsheet.getSheetById(this.sheetId);
+    }
+  }
+
+  getRangeByName(name){
+    return this.spreadsheet.getRangeByName(name)
+  }
+
+  pasteHeader(){
+    const rangeHeader = this.getRangeByName(this.rangeHeaderName);
+    rangeHeader
+      .setValue(this.name)
+      .setFontWeight("bold");
+  }
+
+  pasteSheetLinks(){
+    const links = this.links;
+    const rangeToc = this.getRangeByName(this.rangeTocName);
+    rangeToc.setRichTextValues(links);
+
+  }
+
+  setFrozenRows(num){
+    if(!TocSheet.isEmptyObject(this.sheet)){
+      this.sheet.setFrozenRows(num);
+    }else{
+      const sheet = this.getSheet();
+      sheet.setFrozenRows(num);
+    }
+  }
 }
