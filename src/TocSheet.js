@@ -3,7 +3,7 @@ class TocSheet {
   constructor({name, titles, sheetId, rangeHeader, rangeToc}, spreadsheet, propsService){
     this.spreadsheet = spreadsheet || new SpreadsheetUtility();
     this.propsService = propsService || new PropertiesServiceStorage();
-    this.state = {};
+    this.key = "tocSheet";
     this.name = name|| "Table of Contents";
     this.titles = titles || null;
     this.sheetId = sheetId || null;
@@ -23,7 +23,9 @@ class TocSheet {
   }
 
   static isEmptyObject(obj){
-    return Object.entries(obj).length === 0;
+    if(obj){
+      return Object.entries(obj).length === 0 ;
+    }
   }
 
   save(){
@@ -36,6 +38,7 @@ class TocSheet {
     this.setTitles();
     this.setSheetLinks();
     this.setNamedRanges();
+    this.formatSheet();
   }
   
   formatSheet(){    
@@ -90,7 +93,7 @@ class TocSheet {
 
   getSheet(){
     //if sheet object is not empty return this.sheet
-    if(!TocSheet.isEmptyObject(this.sheet)){
+    if(!TocSheet.isEmptyObject(this.sheet) && this.sheet){
       return this.sheet;
     }else{
       //if the sheet object is empty getSheet from SpreadsheetUtility
@@ -123,5 +126,14 @@ class TocSheet {
       const sheet = this.getSheet();
       sheet.setFrozenRows(num);
     }
+  }
+  remove(){
+    const sheet = this.getSheet();
+    this.spreadsheet.deleteSheet(sheet);
+    this.propsService.deleteSheetProp(this.key);
+  }
+  
+  handleMenuSelectRemove(){
+    this.remove();
   }
 }

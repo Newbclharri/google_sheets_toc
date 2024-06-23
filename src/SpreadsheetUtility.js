@@ -45,9 +45,10 @@ class SpreadsheetUtility {
       return this.activeSheet.getRangeByName(name)
     }
 
-    createSheetLink(sheet, underline, bold){
+    createSheetLink(sheet, underline=false, bold=false){
       if(sheet){ 
-        let sheetUrl = this.url + "#gid" + sheet.getSheetId();
+        let sheetId = sheet.getSheetId()
+        let sheetUrl = this.url + "?gid=" + sheetId + "#gid=" + sheetId;
         let linkStyle = this.newRichTextStyle
           .setUnderline(underline)
           .setBold(bold)
@@ -69,10 +70,14 @@ class SpreadsheetUtility {
       sheetIds.forEach(id =>{
         const sheet = this.getSheetById(id);
         if(sheet){
-          link = this.createSheetLink(sheet, true, true);
+          link = this.createSheetLink(sheet, underline, bold);
           links.push([link]);
         }
       }) 
       return links;           
+    }
+
+    deleteSheet(sheet){
+      this.activeSheet.deleteSheet(sheet);
     }
 }

@@ -1,4 +1,4 @@
 function onOpen() {
-  const uI = new UiUtil(getSpreadsheetApp);
+  const uI = new UiUtil();
   uI.createMenu();
 }
