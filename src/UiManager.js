@@ -26,8 +26,8 @@ class UiUtil{
       .addToUi();
     }
 
-  confirmDelete(){
-    const response = this.uI.alert('Confirm Deletion', 'Delete this item?', this.uI.ButtonSet.OK_CANCEL);
+  confirmDelete(title, message){
+    const response = this.uI.alert(title, message, this.uI.ButtonSet.OK_CANCEL);
     if (response == this.uI.Button.OK) {
       return true;
     }else{
@@ -40,27 +40,34 @@ class UiUtil{
 }
 
 function start(){
-  const uI = getSpreadsheetApp().getUi();
+  const scriptApp = getScriptApp(), spreadsheetUtil = SpreadsheetUtility.getInstance();
+  const uI = spreadsheetUtil.getUi();
   const loaded = TocSheet.load();
   if(loaded){
     TocSheet.setTocAsActiveSheet(loaded);
   }else{
-    const spreadsheetApp = new SpreadsheetUtility();
-    const propsService = new PropertiesServiceStorage();
-    const myToc = new TocSheet({},spreadsheetApp, propsService);
+    const propsStor = new PropertiesServiceStorage();
+    const triggerManager = TriggerManager.getInstance(scriptApp, spreadsheetUtil);
+    const myToc = new TocSheet({},spreadsheetUtil, propsStor);
     myToc.initialize();
-    myToc.save();
+    console.log("From ui manager tocKey: ", myToc.key)
+    myToc.save(myToc.key, myToc);
+    triggerManager.setTrigger(triggerManager.getEventType().ON_CHANGE, "onChange");
   }  
 }
 
 function confirmDelete(){
   const uI = UiUtil.getInstance()
-  const isConfirmed = uI.confirmDelete();
+  const isConfirmed = uI.confirmDelete('Confirm Delete:','Delete item?');
   if(isConfirmed){
     const loaded = TocSheet.load();
     if(loaded){
+      const scriptApp = getScriptApp(), spreadsheetUtil = SpreadsheetUtility.getInstance();
+      const triggerManager = TriggerManager.getInstance(scriptApp, spreadsheetUtil);
       const myToc = new TocSheet(loaded);
-      myToc.handleMenuSelectRemove();
+      myToc.handleMenuSelectRemove(()=>{
+        return triggerManager.deleteTrigger(triggerManager.getEventType().ON_CHANGE, "handleOnChange");
+      });
       uI.alert("deleted");
     }else{
       uI.alert("No Table of Contents found.")
