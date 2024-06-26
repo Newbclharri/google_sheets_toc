@@ -28,31 +28,31 @@ class SpreadsheetUtility {
     }
 
     insertSheet(name){
-      return this.activeSheet.insertSheet(name,0)
-    };
+      return this.activeSheet.insertSheet(name,0);
+
+    }
 
     setActiveSheet(sheet){
       return this.activeSheet.setActiveSheet(sheet);
-    };
+    }
 
     setNamedRange(name,range){
       this.activeSheet.setNamedRange(name, range)
-    };
+    }
 
     getSheets(){
       return this.sheets;
-    };
+    }
 
     getSheetByName(name){
       return this.activeSheet.getSheetByName(name)
-    };
+    }
     getSheetById(id){
       if(!isNaN(id)){
-        const sheet = this.sheets.find(sheet => sheet.getSheetId() === id);
-        return sheet;
+        return this.sheets.find(sheet => sheet.getSheetId() === id);
       }
       return undefined;
-    };
+    }
 
     getSheetIds(){
       return this.activeSheet.getSheets().map(sheet => sheet.getSheetId());

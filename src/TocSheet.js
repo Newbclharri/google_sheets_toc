@@ -9,10 +9,10 @@ class TocSheet {
     this.backupKey = "tocBackup";
     this.name = name || "Table of Contents";
     this.titles = titles || null;
-    // this.rangeHeaderName = rangeHeaderName || null;
-    // this.rangeContentsName = rangeContentsName || null;
-    // this.rangeHeaderA1Notation = rangeHeaderA1Notation || null;
-    // this.rangeContentsA1Notation = rangeContentsA1Notation || null;
+    this.rangeHeaderName = rangeHeaderName || null;
+    this.rangeContentsName = rangeContentsName || null;
+    this.rangeHeaderA1Notation = rangeHeaderA1Notation || null;
+    this.rangeContentsA1Notation = rangeContentsA1Notation || null;
   }
 
   static load() {
@@ -34,15 +34,15 @@ class TocSheet {
     return false;
   }
 
-  save(key, data) {
+  save(key = this.key, data = this) {
     this.propsStorage.save(key, data);
   }
 
-  initialize() {
-    this.createSheet();
-    this.initializeAllSheetIds();
-    this.initializeContentIds();
-    this.initializeTitles();
+  initialize(name = this.name) {
+    this.createSheet(name);
+    this.allSheetIds = this.fetchSheetIds();
+    this.contentIds = this.fetchSheetIdsNotEqualTo(this.sheetId)
+    this.titles = this.fetchTitleNames();
     this.createSheetLinks();
     this.initializeNamedRanges();
     this.formatSheet();
@@ -57,9 +57,11 @@ class TocSheet {
 
   createSheet(name) {
     name = name || this.name;
-    const sheet = this.spreadsheetUtil.insertSheet(this.name);
+    const sheet = this.spreadsheetUtil.insertSheet(this.name)
     this.sheet = sheet;
     this.sheetId = sheet.getSheetId();
+    return sheet
+
   }
 
   initializeSheetId() {
@@ -70,6 +72,18 @@ class TocSheet {
     this.contentIds = sheetIds;
   }
 
+  setAllSheetIds(sheetIds) {
+    this.allSheetIds = sheetIds;
+  }
+
+  fetchSheetIds() {
+    return this.spreadsheetUtil.getSheetIds();
+  }
+
+  updateSheetIds() {
+    this.allSheetIds = this.fetchSheetIds();
+  }
+
   initializeAllSheetIds() {
     //all sheet Ids in the active spreadsheet for reference
     this.allSheetIds = this.spreadsheetUtil.getSheetIds();
@@ -78,45 +92,57 @@ class TocSheet {
 
   initializeContentIds() {
     //this.contentIds = this.spreadsheetUtil.getSheetIdsNotEqualTo(this.sheetId);
-    this.contentIds = this.allSheetIds.filter(id => id !== this.sheetId);
+    this.contentIds = this.fetchSheetIdsNotEqualTo(this.sheetId)
+  }
+
+  fetchSheetIdsNotEqualTo(id = this.sheetId) {
+    return this.spreadsheetUtil.getSheetIdsNotEqualTo(id);
   }
 
   createSheetLinks(contentIds = this.contentIds) {
-    this.links = this.spreadsheetUtil.createSheetLinks(this.contentIds, false, true);
+    if (!(contentIds && contentIds.length)) {
+      contentIds = this.fetchSheetIdsNotEqualTo(this.sheetId)
+    }
+    this.links = this.spreadsheetUtil.createSheetLinks(contentIds, false, true);
+    return this.links;
   }
 
 
 
-  initializeTitles() {
+  fetchTitleNames() {
+    let titles;
     try {
-      if (!this.titles) {
-        const sheets = this.spreadsheetUtil.getSheets();
-        const sheetId = this.sheetId;
-        const titles = sheets.filter(sheet => sheet.getSheetId() !== sheetId)
-          .map(sheet => sheet.getName());
-        this.titles = titles;
-      }
-
+      const sheets = this.spreadsheetUtil.getSheets();
+      const sheetId = this.sheetId;
+      titles = sheets.filter(sheet => sheet.getSheetId() !== sheetId)
+        .map(sheet => sheet.getName());
     } catch (err) {
       console.log(err)
-      this.titles = [];
+      titles = [];
     }
+    return titles;
 
   }
 
   initializeNamedRanges() {
-    const rangeHeader = this.sheet.getRange(1, 1)
+
+    const rangeHeader = this.rangeHeaderA1Notation ? this.sheet.getRange(this.rangeHeaderA1Notation) : this.sheet.getRange(1, 1)
+
     const numRows = this.titles.length;
     const rangeContents = this.sheet.getRange(2, 1, numRows)
     if (!this.rangeHeaderName) this.rangeHeaderName = "TOCHeader";
     if (!this.rangeContentsName) this.rangeContentsName = "TOC";
-    this.spreadsheetUtil.setNamedRange(this.rangeHeaderName, rangeHeader)
-    this.spreadsheetUtil.setNamedRange(this.rangeContentsName, rangeContents)
+    this.setNamedRange(this.rangeHeaderName, rangeHeader)
+    this.setNamedRange(this.rangeContentsName, rangeContents)
     this.rangeHeader = rangeHeader;
     this.rangeContents = rangeContents;
     this.rangeHeaderA1Notation = rangeHeader.getA1Notation();
     this.rangeContentsA1Notation = rangeContents.getA1Notation();
   };
+
+  setNamedRange(range, name) {
+    this.spreadsheetUtil.setNamedRange(range, name)
+  }
 
 
   loadData() {
@@ -128,29 +154,13 @@ class TocSheet {
   getRichTextValues() {
     const rangeContents = this.spreadsheetUtil.getRangeByName(this.rangeContentsName);
     this.richTextValues = rangeContents.getRichTextValues();
-    console.log("richTextValues: ", this.richTextValues)
+    //console.log("richTextValues: ", this.richTextValues)
   }
 
-  loadBackup() {
-    const headerRangeA1Notation = this.spreadsheetUtil.getActive()
-      .getRangeByName(this.rangeHeaderName)
-      .getA1Notation();
-    const contentsRangeA1Notation = this.spreadsheetUtil.getActive()
-      .getRangeByName(this.rangeContentsName)
-      .getA1Notation();
-    let key = "tocBackup", name = this.name, data, richTextValues;
-    this.loadData();
-    //this.setRichTextValues();
-    data = this.data;
-    // richTextValues = this.richTextValues;
-    this.backup = {
-      key,
-      name,
-      headerRangeA1Notation,
-      contentsRangeA1Notation,
-      data,
-    }
-    this.save(this.backup.key, this.backup)
+  saveBackup() {
+    const { name, backupKey, allSheetIds, rangeHeaderName, rangeHeaderA1Notation, rangeContentsName, rangeContentsA1Notation } = this;
+    this.backup = { name, backupKey, allSheetIds, rangeHeaderName, rangeHeaderA1Notation, rangeContentsName, rangeContentsA1Notation };
+    this.save(this.backupKey, this.backup);
   }
 
   getBackUp() {
@@ -158,14 +168,20 @@ class TocSheet {
   }
 
   getSheet() {
-    //if sheet object is not empty return this.sheet
-    if (this.sheet && !TocSheet.isEmptyObject(this.sheet)) {
-      return this.sheet;
-    } else {
-      //if the sheet object is empty, undefined, or null getSheet from SpreadsheetUtility
-      const sheet = this.spreadsheetUtil.getSheetById(this.sheetId);
-      return sheet;
+    try {
+      //if sheet object is not empty return this.sheet
+      if (this.sheet && !TocSheet.isEmptyObject(this.sheet)) {
+        return this.sheet;
+      }
+
+    } catch (err) {
+      console.log(err)
+      return undefined;
     }
+  }
+
+  fetchSheet() {
+    return this.spreadsheetUtil.getSheetById(this.sheetId)
   }
 
   getSheetId() {
@@ -177,10 +193,6 @@ class TocSheet {
 
   getAllSheetIds() {
     try {
-
-      if (this.allSheetIds === null) {
-        return this.spreadsheetUtil.getAllSheetIds()
-      }
       return this.allSheetIds;
     } catch (err) {
       console.log(err)
@@ -189,39 +201,84 @@ class TocSheet {
   }
 
 
-  getRangeByName(name) {
 
+  getRangeByName(name) {
     const range = this.spreadsheetUtil.getRangeByName(name)
+
     if (range) {
-      return this.spreadsheetUtil.getRangeByName(name)
+      return range
     }
     return undefined;
   }
 
-  pasteHeader(rangeHeader) {
-    rangeHeader = rangeHeader || this.getRangeByName(this.rangeHeaderName);
-    rangeHeader
-      .setValue(this.name)
-      .setFontWeight("bold");
+  pasteHeader(range) {
+    range = range || this.getRangeByName(this.rangeHeaderName);
+    let sheet;
+    if (!range) {
+      try {
+        sheet = this.sheet;
+      } catch (error) {
+        sheet = this.fetchSheet();
+        console.log(error.message, " | ", error.stack)
+      }finally{
+        if(sheet){
+          range = sheet.getRange(this.rangeHeaderA1Notation)
+          this.setNamedRange(this.rangeHeaderName, range)
+          range = this.getRangeByName(this.rangeHeaderName)
+          range
+            .setValue(this.name)
+            .setFontWeight("bold");
+        }
+      }
+    }else{
+      console.log("Could not retrieve sheet.")
+    }
   }
 
-  pasteSheetLinks() {
-    const links = this.links;
-    const rangeContents = this.getRangeByName(this.rangeContentsName);
-    rangeContents.setRichTextValues(links);
+  pasteSheetLinks(range, links = this.links) {
+    
+    range = range || this.getRangeByName(this.rangeContentsName);
+
+    //if links is not an arrat with elements
+    if (!(links && links.length)) {
+      links = this.createSheetLinks()
+    }
+
+    if (!range) {
+      let sheet;
+      try {
+        sheet = this.sheet;
+      } catch (err) {
+        sheet = this.fetchSheet();
+        console.error(err.message, " | ", err.stack)
+      } finally {
+        if(sheet){
+          range = sheet.getRange(this.rangeContentsA1Notation)
+          this.setNamedRange(this.rangeContentsName, range)
+          range = this.getRangeByName(this.rangeContentsName)
+          range.setRichTextValues(links);
+        }
+      }
+    }else{
+      console.error("Couldn't retrieve sheet.")
+    }
 
   }
 
   setFrozenRows(num) {
-    if (this.sheet && !TocSheet.isEmptyObject(this.sheet)) {
-      this.sheet.setFrozenRows(num);
-    } else {
-      const sheet = this.getSheet();
-      sheet.setFrozenRows(num);
+    let sheet = this.sheet;
+    //if the sheet is an empty object or undefined fetch the TOC sheet from the spreadsheet
+    try {
+      if ((sheet && TocSheet.isEmptyObject(sheet)) || !sheet) {
+        sheet = this.fetchSheet();
+      }
+      sheet.setFrozenRows(num)
+    } catch (err) {
+      console.log(err, `| Could not find sheet with id . ${this.sheetId}`)
     }
   }
   remove() {
-    const sheet = this.getSheet();
+    const sheet = this.fetchSheet();
     if (sheet) {
       this.spreadsheetUtil.deleteSheet(sheet);
     }
@@ -244,23 +301,35 @@ class TocSheet {
     }
   }
 
-  restore(backup) {
-    console.log(backup)
-    if (backup) {
-      const newSheet = this.spreadsheetUtil.createSheet(backup.name);
-      let range;
-      newSheet.getRange(1, 1, backup.data.length, backup.data[0].length).setValues(backup.data)
-      range = newSheet.getRange(backup.rangeHeaderA1Notation)
-      this.spreadsheetUtil.setNamedRange(this.rangeContentsName, range);
-      range = newSheet.getRange(backup.rangeContentsA1Notation)
-      this.spreadsheetUtil.setNamedRange(this.rangeContentsName, range)
-      this.name = backup.name;
-      //this.sheetId = newSheet.getSheetId();
-      console.log("newSheetId: ", this.sheetId)
+  updateState(newState = {}) {
+    for (let key in newState) {
+      if (this.hasOwnProperty(key)) {
+        this[key] = newState[key]
+      }
+    }
+  }
 
+  restore(backup) {
+    //console.log(backup)
+    if (backup && !TocSheet.isEmptyObject(backup)) {
+      const { rangeHeaderName, rangeHeaderA1Notation, rangeContentsName, rangeContentsA1Notation } = backup
+      let newSheet;
+      this.updateState({ rangeHeaderName, rangeHeaderA1Notation, rangeContentsName, rangeContentsA1Notation })
+      this.name = backup.name;
+      if (backup.data) {
+        newSheet = this.createSheet(backup.name);
+        newSheet.getRange(1, 1, backup.data.length, backup.data[0].length).setValues(backup.data)
+        this.sheetId = newSheet.getSheetId();
+      } else {
+        this.createSheet(backup.name);
+      }
+      this.formatSheet();
+      console.log("newSheetId: ", this.sheetId)
+      //const {name, titles, sheetId, allSheetIds, rangeHeaderName, rangeHeaderA1Notation, rangeContentsName, rangeContentsA1Notation} = this;
+      //dataToSave = {name, titles, sheetId, allSheetIds, rangeHeaderName, rangeHeaderA1Notation, rangeContentsName, rangeContentsA1Notation}
       //destructure if more efficient before saving
       //const {this object property names here} = this;
-      this.save("tocSheet", this);
+      //this.save("tocSheet", this);
     }
   }
 }

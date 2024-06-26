@@ -16,21 +16,22 @@ class SheetChangeHandler {
         const activeSheetId = this.activeSheet.getSheetId()
         if (activeSheetId === this.targetSheetId) {
             console.log("tocSheet change detected.")
-        }
-        this.updateData();
-        switch (e.changeType) {
-            case "REMOVE_COLUMN":
-            case "INSERT_COLUMN":
-            case "REMOVE_ROW":
-            case "INSERT_ROW":
-                this.updateRanges() //above cases may change the TOC named ranges (header range and contents range)
-                break;
-            case "OTHER": //tab is renamed
-                this.name = this.activeSheet.getName();
-                break;
-
-            default:
-                console.log("unlisted changeType, should be 'FORMAT': ", e.changeType)
+            //EDIT, REMOVE_COLUMN, INSERT_COLUMN, REMOVE_ROW, INSERT_ROW all require sheet range values backup
+            this.updateData();
+            switch (e.changeType) {
+                case "REMOVE_COLUMN":
+                case "INSERT_COLUMN":
+                case "REMOVE_ROW":
+                case "INSERT_ROW":
+                    this.updateRanges() //above cases may change the TOC named ranges (header range and contents range)
+                    break;
+                case "OTHER": //tab is renamed
+                    this.name = this.activeSheet.getName();
+                    break;
+    
+                default:
+                    console.log("other changeTypes(FORMAT, EDIT): ", e.changeType)
+            }
         }
     }
     handleRename(name) {

@@ -20,26 +20,37 @@
 class HandleGridChange {
     constructor(obj) {
         this.instance = obj;
+        this.ssUtil = SpreadsheetUtility.getInstance();
         this.uI = UiUtil.getInstance(); //SpreadsheetApp.getUi();
-        this.handleRemoveGrid();
+        this.currentListOfSheetIds = this.instance.fetchSheetIds();
+        this.propsStorage = PropertiesServiceStorage.getInstance(); //PropertiesService
+        //this.handleRemoveGrid();
 
     }
 
     handleRemoveGrid() {
 
         if (this.isRemovedTocTab()) {
-            this.handleUserRemovesTocTab()
+            this.handleUserRemovesTocTab();
         }
     }
 
     isRemovedTocTab() {
         //logic here
-        return this.instance.getAllSheetIds().some(id => id === this.instance.sheetId)
+        console.log("allIds: ", "from property: this.instance.sheetId: ", this.instance.sheetId, " from gridhandler.currentIdLIst: ", this.currentListOfSheetIds)
+        console.log(this.instance.fetchSheetIds().some(id => id === this.instance.sheetId))
+        return !this.instance.fetchSheetIds().some(id => id === this.instance.sheetId)
     }
 
     handleUserRemovesTocTab() {
+        const key = this.instance.backupKey;
+        const backup = this.propsStorage.load(key);
+        console.log(backup);
         //logic
+        this.instance.updateState({"allSheetIds": this.currentListOfSheetIds})
+        this.instance.restore(backup);
         this.uI.alert("Table of Contents Removed.")
+
     }
 
     handleUserRemovesContentTab() {

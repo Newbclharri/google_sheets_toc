@@ -51,7 +51,8 @@ function start(){
     const myToc = new TocSheet({},spreadsheetUtil, propsStor);
     myToc.initialize();
     console.log("From ui manager tocKey: ", myToc.key)
-    myToc.save(myToc.key, myToc);
+    myToc.save();
+    myToc.saveBackup();
     triggerManager.setTrigger(triggerManager.getEventType().ON_CHANGE, "onChange");
   }  
 }

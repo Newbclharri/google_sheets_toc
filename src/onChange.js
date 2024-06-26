@@ -1,28 +1,33 @@
 function onChange(e) {
-    console.log("changeType: ",e.changeType)
-    if (e.changeType !== "EDIT") {
-        const loaded = TocSheet.load();
-        const spreadsheetUtil = SpreadsheetUtility.getInstance();
-        const propsStorage = PropertiesServiceStorage.getInstance();
-        let backupData;
+    let loaded, spreadsheetUtil, propsStorage, backupData, updates, myToc
+    console.log("changeType: ", e.changeType)
+    if (e.changeType) {
+        loaded = TocSheet.load();
+        spreadsheetUtil = SpreadsheetUtility.getInstance();
+        propsStorage = PropertiesServiceStorage.getInstance();
         let tocChangeHandler;
         if (loaded) {
-            const myToc = new TocSheet(loaded, spreadsheetUtil, propsStorage)
+            myToc = new TocSheet(loaded, spreadsheetUtil, propsStorage)
 
             switch (e.changeType) {
                 case "INSERT_GRID":
                     break;
                 case "REMOVE_GRID":
                     const gridHandler = new HandleGridChange(myToc);
+                    gridHandler.handleRemoveGrid();
                     break;
-                default: //"INSERT_COLUMN, REMOVE_COLUMN,  INSERT_ROW, REMOVE_ROW, OTHER"
+                default: //"INSERT_COLUMN, REMOVE_COLUMN,  INSERT_ROW, REMOVE_ROW, OTHER, EDIT"
                     tocChangeHandler = new SheetChangeHandler(myToc)
                     tocChangeHandler.handleChange(e)
-                    propsStorage.save(myToc.key, tocChangeHandler.getSheetUpdates());
+                    updates = tocChangeHandler.getSheetUpdates()
                     backupData = tocChangeHandler.getBackupData();
-                    propsStorage.save(myToc.backupKey, backupData);
+            }
+
+            if(updates && backupData){
+                propsStorage.save(myToc.key, updates);
+                propsStorage.save(myToc.backupKey, backupData);
             }
         }
     }
-   
+
 }
