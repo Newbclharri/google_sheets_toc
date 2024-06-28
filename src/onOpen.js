@@ -1,5 +1,5 @@
 function onOpen() {
-  //const uI = UiUtil.getInstance();
+  const uI = UiUtil.getInstance();
   uI.createMenu();
   //const loaded = TocSheet.load();
   // if(loaded){

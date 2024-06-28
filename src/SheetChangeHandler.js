@@ -1,23 +1,23 @@
 class SheetChangeHandler {
-    constructor({ name, sheetId, key, backupKey, rangeHeaderName, rangeContentsName }) {
-        this.name = name;
-        this.key = key;
-        this.backupKey = backupKey;
-        this.targetSheetId = sheetId;
+    constructor(obj = {}, id) {
+        this.sheet = obj;
+        this.backupKey = obj.backupKey;
+        this.targetSheetId = id //obj.sheetId;
         this.spreadsheetUtil = SpreadsheetUtility.getInstance(); //|| SpreadsheetApp;
         this.activeSheet = this.spreadsheetUtil.getActive().getActiveSheet();
         this.uI = new UiUtil();
-        this.rangeHeaderName = rangeHeaderName;
-        this.rangeContentsName = rangeContentsName;
+        this.rangeHeaderName = obj.rangeHeaderName;
+        this.rangeContentsName = obj.rangeContentsName;
     }
 
 
     handleChange(e) {
         const activeSheetId = this.activeSheet.getSheetId()
+        console.log("active id: ", activeSheetId, " | targetId", this.targetSheetId)
         if (activeSheetId === this.targetSheetId) {
             console.log("tocSheet change detected.")
-            //EDIT, REMOVE_COLUMN, INSERT_COLUMN, REMOVE_ROW, INSERT_ROW all require sheet range values backup
-            this.updateData();
+            //EDIT, REMOVE_COLUMN, INSERT_COLUMN, REMOVE_ROW, INSERT_ROW all require sheet data range values backup
+            this.updateDataRangeValues();
             switch (e.changeType) {
                 case "REMOVE_COLUMN":
                 case "INSERT_COLUMN":
@@ -26,37 +26,51 @@ class SheetChangeHandler {
                     this.updateRanges() //above cases may change the TOC named ranges (header range and contents range)
                     break;
                 case "OTHER": //tab is renamed
-                    this.name = this.activeSheet.getName();
+                    this.handleRename();
                     break;
-    
+
                 default:
-                    console.log("other changeTypes(FORMAT, EDIT): ", e.changeType)
+                    console.log("SheetChangeHandler.js other changeTypes(FORMAT, EDIT): ", e.changeType)
             }
+            /////////////SAVE UPDATED PROPERTIES//////////////
+            this.sheet.save();
+            this.sheet.saveBackup();
         }
     }
-    handleRename(name) {
-        this.name = this.activeSheet.getName();
+
+
+    handleRename() {
+        const newName = this.activeSheet.getName();
+        if (newName !== this.sheet.name) {
+            this.sheet.setName(newName);
+        }
     }
 
     updateRanges() {
-        const rangeHeaderA1Notation = this.spreadsheetUtil
+        const newRangeHeaderA1Notation = this.spreadsheetUtil
             .getActive()
             .getRangeByName(this.rangeHeaderName)
             .getA1Notation();
 
-        const rangeContentsA1Notation = this.spreadsheetUtil
+        const newRangeContentsA1Notation = this.spreadsheetUtil
             .getActive()
             .getRangeByName(this.rangeContentsName)
             .getA1Notation();
-        this.rangeHeaderA1Notation = rangeHeaderA1Notation;
-        this.rangeContentsA1Notation = rangeContentsA1Notation;
-        console.log("New Range Header: ", this.rangeHeaderA1Notation, " New range contents: ", this.rangeContentsA1Notation);
+        this.sheet.updateState({
+            rangeHeaderA1Notation: newRangeHeaderA1Notation,
+            rangeContentsA1Notation: newRangeContentsA1Notation
+        });      
+       
     }
 
-    updateData() {
+    updateDataRangeValues() {
         const values = this.activeSheet.getDataRange().getValues();
-        this.values = values
+        if(values){
+            this.sheet.updateState({ dataRangeValues: values });
 
+            // this.dataRangeValues = values;
+            this.sheet.updateBackup()
+        }
     }
 
     getDataRangeValues() {
@@ -64,16 +78,16 @@ class SheetChangeHandler {
     }
 
     getSheetUpdates() {
-        const {name, sheetId, key, backupKey, rangeHeaderName, rangeHeader, rangeContentsName, rangeContents} = this;
-        
-        return { name, key, backupKey, sheetId, rangeHeaderName, rangeContentsName, rangeHeader, rangeContents };
+        const updates = this.sheet.toJSON();
+
+        return updates;
     }
 
-    getBackupData(){
-        const data = this.getDataRangeValues();
-        const backupData = {...this.getSheetUpdates(), data}
-        return backupData;
-    }
+    // getBackupData() {
+    //     const data = this.getDataRangeValues();
+    //     const backupData = { ...this.getSheetUpdates(), data }
+    //     return backupData;
+    // }
 }
 
 

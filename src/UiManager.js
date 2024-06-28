@@ -49,10 +49,15 @@ function start(){
     const propsStor = new PropertiesServiceStorage();
     const triggerManager = TriggerManager.getInstance(scriptApp, spreadsheetUtil);
     const myToc = new TocSheet({},spreadsheetUtil, propsStor);
+    let propsToSave;
     myToc.initialize();
     console.log("From ui manager tocKey: ", myToc.key)
-    myToc.save();
-    myToc.saveBackup();
+    propsToSave = [["tocSheetId", myToc.sheetId], [myToc.key, myToc.toJSON()], [myToc.backupKey, myToc.getBackUp()]];
+    //////////INITIAL SAVE//////////////
+    for(let prop of propsToSave){
+      const key = prop[0], value = prop[1];
+      PropertiesServiceStorage.getInstance().save(key, value);
+    }
     triggerManager.setTrigger(triggerManager.getEventType().ON_CHANGE, "onChange");
   }  
 }

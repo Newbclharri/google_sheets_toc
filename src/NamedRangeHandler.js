@@ -1,5 +1,5 @@
 class NamedRangeHandler {
-    constructor(name, range, obj) {
+    constructor(name, range, obj = {}, id) {
         this.name = name;
         this.range = range;
         this.spreadsheetUtil = SpreadsheetUtility.getInstance(); // SpreadsheetApp
@@ -7,11 +7,11 @@ class NamedRangeHandler {
         this.activeSheet = this.spreadsheet.getActiveSheet();
         this.rangeHeaderName = obj.rangeHeaderName;
         this.rangeContentsName = obj.rangeContentsName;
-        this.sheetId = obj.sheetId;
+        this.sheetId = id //obj.sheetId;
     }
 
     handleRangeEdit(e) {
-        console.log("inside NamedRangeHandler: this.range: ", this.range)
+        // console.log("inside NamedRangeHandler: this.range: ", this.range)
         if (this.range && this.activeSheet.getSheetId() === this.sheetId) {
             console.log("tocSheet edit detected.")
             //possible try catch...

@@ -18,7 +18,7 @@ class PropertiesServiceStorage {
   }
 
   save(key = this.key, tocData){
-    const data = JSON.stringify(tocData)
+    const data = this.isValidJSON(tocData) ? tocData: JSON.stringify(tocData)
     return this.scriptProps.setProperty(key, data);
   };
 
@@ -35,4 +35,13 @@ class PropertiesServiceStorage {
   deleteSheetProp(key=this.key){
     return this.scriptProps.deleteProperty(key);
   }
+
+  isValidJSON(str) {
+    try {
+        JSON.parse(str);
+        return true;
+    } catch (e) {
+        return false;
+    }
+}
 }
