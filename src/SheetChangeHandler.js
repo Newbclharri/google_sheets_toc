@@ -23,7 +23,7 @@ class SheetChangeHandler {
                 case "INSERT_COLUMN":
                 case "REMOVE_ROW":
                 case "INSERT_ROW":
-                    this.updateRanges() //above cases may change the TOC named ranges (header range and contents range)
+                    this.updateContentRange(e) //above cases may change the TOC named ranges (header range and contents range)
                     break;
                 case "OTHER": //tab is renamed
                     this.handleRename();
@@ -46,26 +46,22 @@ class SheetChangeHandler {
         }
     }
 
-    updateRanges() {
-        const newRangeHeaderA1Notation = this.spreadsheetUtil
-            .getActive()
-            .getRangeByName(this.rangeHeaderName)
-            .getA1Notation();
-
-        const newRangeContentsA1Notation = this.spreadsheetUtil
-            .getActive()
-            .getRangeByName(this.rangeContentsName)
-            .getA1Notation();
-        this.sheet.updateState({
-            rangeHeaderA1Notation: newRangeHeaderA1Notation,
-            rangeContentsA1Notation: newRangeContentsA1Notation
-        });      
-       
+    updateContentRange() {
+        try {
+            const range = this.sheet.getRangeContents();
+            const newRangeContentsA1Notation = range.getA1Notation();
+            this.sheet.updateState({
+                rangeContentsA1Notation: newRangeContentsA1Notation
+            });
+        } catch (err) {
+            console.error("Could not update range: ", err)
+            console.log(err.stack);
+        }
     }
 
     updateDataRangeValues() {
         const values = this.activeSheet.getDataRange().getValues();
-        if(values){
+        if (values) {
             this.sheet.updateState({ dataRangeValues: values });
 
             // this.dataRangeValues = values;

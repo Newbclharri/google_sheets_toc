@@ -3,7 +3,7 @@ class TocSheet {
   constructor(params = {}, spreadsheetUtil, propsStorage) {
     this.sheetId = params.sheetId || null;
     this.allSheetIds = params.allSheetIds || null;
-    this.spreadsheetUtil = spreadsheetUtil || SpreadsheetUtility.getInstance();
+    this.ssUtil = spreadsheetUtil || SpreadsheetUtility.getInstance();
     this.propsStorage = propsStorage || PropertiesServiceStorage.getInstance();
     this.key = "tocSheet";
     this.backupKey = "tocBackup";
@@ -33,22 +33,26 @@ class TocSheet {
     return JSON.stringify(data);
   }
 
-  static convertToNumber(str) {
-    //Return string if it is actually a number
-    if(!isNaN(str)){
-      return str
+  static convertToNumber(value) {
+
+    //the passed argument is already a number:
+    if (typeof value === "number") {
+      return value;
     }
 
-    if (typeof str !== "string") {
-      throw new Error(`Value ${str} is not a string. It is Type ${typeof str}`);
+
+    //the passed argument is not a number, but also not a string
+    if (typeof value !== "string") {
+      throw new Error(`Expected string. Received ${value}: ${typeof value}`)
     }
 
-    const num = Number(str)
-    if (Number.isNaN(num)) {
-      throw new Error(`Value ${str} is not coercible to a number.`);
+    const convertedValue = Number(value);
+    if (isNaN(convertedValue)) {
+      throw new Error(`Conversion to number failed for value: ${value}`);
     }
 
-    return num;
+    return convertedValue;
+
   }
 
 
@@ -76,7 +80,7 @@ class TocSheet {
     this.propsStorage.save(key, data);
   }
 
-  saveSheetId(key = this.tocSheetIdKey){
+  saveSheetId(key = this.tocSheetIdKey) {
     this.propsStorage.save(key, this.sheetId)
   }
 
@@ -85,7 +89,7 @@ class TocSheet {
     this.allSheetIds = this.fetchSheetIds();
     this.contentIds = this.fetchSheetIdsNotEqualTo(this.sheetId)
     this.titles = this.fetchTitleNames();
-    this.createSheetLinks();
+    this.createSheetLinks(this.contentIds);
     this.initializeNamedRanges();
     this.formatSheet();
   }
@@ -99,7 +103,7 @@ class TocSheet {
 
   createSheet(name) {
     name = name || this.name;
-    const sheet = this.spreadsheetUtil.insertSheet(this.name)
+    const sheet = this.ssUtil.insertSheet(this.name)
     this.sheet = sheet;
     this.sheetId = sheet.getSheetId();
     this.saveSheetId();
@@ -115,8 +119,49 @@ class TocSheet {
     this.name = newName;
   }
 
+  setTitles(titles) {
+    if (!titles.length) {
+      console.log("No titles to update.");
+      return;
+    }
+    this.titles = titles;
+    console.log(`${titles.length} titles added successfully: ${titles}`)
+    return;
+  }
+
+  updateTitlesByIds(ids) {
+    if (!ids.length) {
+      console.log("No ids found to update titles.");
+      return;
+    }
+
+    //get the sheet names by id
+    const names = [];
+    ids.forEach(id => {
+      if (!isNaN(id)) {
+        names.push(this
+          .getSheetById(id)
+          .getName())
+      }
+    });
+
+    //push new titles to the titles array;
+    try {
+      if (Array.isArray(this.titles)) {
+        names.forEach(name => this.titles.push(name));
+        console.log(`Successfully added ${names.length} titles: ${names}`);
+      } else {
+        throw new Error("Could not find an existing array of titles.")
+      }
+    } catch (err) {
+      console.error("New title array creatad: ", err.stack)
+      this.titles = this.fetchTitleNames();
+    }
+  }
+
   setContentIds(sheetIds) {
     this.contentIds = sheetIds;
+    console.log(`ContentIds: ${this.contentIds}`)
   }
 
   setAllSheetIds(sheetIds) {
@@ -131,7 +176,7 @@ class TocSheet {
   }
 
   fetchSheetIds() {
-    return this.spreadsheetUtil.getSheetIds();
+    return this.ssUtil.getSheetIds();
   }
 
   updateSheetIds() {
@@ -140,28 +185,34 @@ class TocSheet {
 
 
   fetchSheetIdsNotEqualTo(id = this.sheetId) {
-    return this.spreadsheetUtil.getSheetIdsNotEqualTo(id);
+    return this.ssUtil.getSheetIdsNotEqualTo(id);
   }
 
   createSheetLinks(contentIds = this.contentIds) {
     if (!(contentIds && contentIds.length)) {
-      contentIds = this.fetchSheetIdsNotEqualTo(this.sheetId)
+      throw new Error("No ids to convert to links")
     }
-    this.links = this.spreadsheetUtil.createSheetLinks(contentIds, false, true);
-    return this.links;
-  }
 
+    const links = [];
+    let link;
+    contentIds.forEach(id => {
+      link = this.ssUtil.createSheetLink(id, false, true)
+      links.push([link])
+    });
+
+    return links;
+  }
 
 
   fetchTitleNames() {
     let titles;
     try {
-      const sheets = this.spreadsheetUtil.getSheets();
+      const sheets = this.ssUtil.getSheets();
       const sheetId = this.sheetId;
       titles = sheets.filter(sheet => sheet.getSheetId() !== sheetId)
         .map(sheet => sheet.getName());
     } catch (err) {
-      console.log(err)
+      console.err(err.message);
       titles = [];
     }
     return titles;
@@ -203,13 +254,161 @@ class TocSheet {
     }
   }
 
+  getContentIds() {
+    return this.contentIds || this.fetchContentIds();
+  }
+
+  updateContentIds(newIds) {
+    const currContentIds = this.getContentIds()
+    if (currContentIds) {
+      const count = 0;
+      const added = []
+      newIds.forEach(id => {
+        if (!currContentIds.includes(id)) {
+          currContentIds.push(id);
+          added.push(id)
+          count++;
+        }
+      })
+      console.log(`Added ${count} content ids: ${added} \nAll content Ids: ${this.contentIds}`);
+    }
+  }
+
+  getSheetById(id) {
+    const sheet = this.ssUtil.getSheetById(id);
+    return sheet;
+  }
+
+  fetchContentIds() {
+    try {
+      const contentIds = this.fetchSheetIdsNotEqualTo(this.sheetId);
+      if (!contentIds) {
+        throw new Error("No ids to convert to links");
+      }
+    } catch (err) {
+      console.error(err.stack);
+    }
+  }
+
   setNamedRange(range, name) {
-    this.spreadsheetUtil.setNamedRange(range, name)
+    this.ssUtil.setNamedRange(range, name)
   }
 
 
+  // getRangeContents() {
+  //   let rangeHeader, rangeContents;
+
+  //   try {
+
+  //     // Fetch the sheet and attempt to get the range by A1 notation
+  //     const sheet = this.fetchSheet();
+  //     if (!sheet) {
+  //       throw new Error("Sheet not found.");
+  //     }
+  //     const lastRow = sheet.getLastRow();
+  //     rangeHeader = this.getRangeByName(this.rangeHeaderName) || sheet.getRange(1,1)
+
+  //     rangeContents = this.getRangeByName(this.rangeContentsName);
+  //     if (!rangeContents) {
+  //       //Attempt to get range contents via A1Notation
+  //       rangeContents = sheet.getRange(this.rangeContentsA1Notation);
+  //     }
+
+  //     if (!rangeContents) {
+  //       //set range to default (1st row, 1st column);
+  //       const rowsHeader = rangeHeader.getLastRow();
+  //       const startRow = rowsHeader + 1;
+  //       rangeContents = sheet.getRange(startRow, 1, lastRow - rowsHeader);
+  //     }
+
+  //     //adjust range for data processing
+  //     const rowsHeader = rangeHeader.getLastRow();
+  //     const startRow = rowsHeader + 1;
+  //     const startColumn = rangeContents.getColumn();
+  //     const adjustedRange = sheet.getRange(startRow, startColumn, lastRow - rowsHeader);
+
+  //     //Reset the contents named range
+  //     this.setNamedRange(this.rangeContentsName, adjustedRange);
+
+  //     //Update contents A1 notation
+  //     this.rangeContentsA1Notation = this.getRangeByName(this.rangeContentsName).getA1Notation;
+  //     return adjustedRange;
+
+  //   } catch (err) {
+  //     console.error(err);     
+  //   }
+  //   // If no range is found or set, return null or handle as needed
+  //   return null;
+  // }
+
+  getRangeContents() {
+    let rangeHeader, rangeContents;
+  
+    try {
+      // Fetch the sheet and attempt to get the range by A1 notation
+      const sheet = this.fetchSheet();
+      if (!sheet) {
+        throw new Error("Sheet not found.");
+      }
+  
+      const lastRow = sheet.getLastRow();
+      rangeHeader = this.getRangeByName(this.rangeHeaderName) || sheet.getRange(1, 1);
+  
+      rangeContents = this.getRangeByName(this.rangeContentsName);
+      if (!rangeContents) {
+        // Attempt to get range contents via A1 notation
+        rangeContents = sheet.getRange(this.rangeContentsA1Notation);
+      }
+  
+      if (!rangeContents) {
+        // Set range to default (1st row, 1st column)
+        const rowsHeader = rangeHeader.getLastRow();
+        const startRow = rowsHeader + 1;
+        rangeContents = sheet.getRange(startRow, 1, lastRow - rowsHeader);
+      }
+  
+      // Get the values in the range and find the rows to delete
+      const data = rangeContents.getValues();
+      const rowsToDelete = [];
+      data.forEach((row, index) => {
+        //the retrieved range is only one column, so the check for every cell will only be one column in length
+        // ex. [[cell1], [cell1], etc]
+        if (row.every(cell => cell === "")) {
+          rowsToDelete.push(index + rangeContents.getRow());
+        }
+      });
+  
+      // Remove rows from bottom to top to avoid index shifting issues
+      for (let i = rowsToDelete.length - 1; i >= 0; i--) {
+        sheet.deleteRow(rowsToDelete[i]);
+      }
+  
+      // Recalculate the range after removing blank rows
+      const newLastRow = sheet.getLastRow();
+      const rowsHeader = rangeHeader.getLastRow();
+      const startRow = rowsHeader + 1;
+      const startColumn = rangeContents.getColumn();
+      const adjustedRange = sheet.getRange(startRow, startColumn, newLastRow - rowsHeader);
+  
+      // Reset the contents named range
+      this.setNamedRange(this.rangeContentsName, adjustedRange);
+  
+      // Update contents A1 notation
+      this.rangeContentsA1Notation = this.getRangeByName(this.rangeContentsName).getA1Notation();
+      return adjustedRange;
+  
+    } catch (err) {
+      console.error(err);
+    }
+  
+    // If no range is found or set, return null or handle as needed
+    return null;
+  }
+  
+
+
   fetchSheetValues() {
-    const sheet = this.spreadsheetUtil.getSheetById(this.sheetId);
+    const sheet = this.ssUtil.getSheetById(this.sheetId);
     const data = sheet.getDataRange().getValues();
     this.data = data;
   }
@@ -221,19 +420,19 @@ class TocSheet {
     return this.propsStorage.load(key);
   }
 
-  loadTocSheetId(){
-    const tocSheetId =  this.propsStorage.load(this.tocSheetIdKey);
-    if(tocSheetId){
+  loadTocSheetId() {
+    const tocSheetId = this.propsStorage.load(this.tocSheetIdKey);
+    if (tocSheetId) {
       return tocSheetId;
     }
   }
 
   getRichTextValues() {
-    const rangeContents = this.spreadsheetUtil.getRangeByName(this.rangeContentsName);
+    const rangeContents = this.ssUtil.getRangeByName(this.rangeContentsName);
     this.richTextValues = rangeContents.getRichTextValues();
   }
 
-  updateBackup(){
+  updateBackup() {
     this.backup = this.toJSON();
   }
 
@@ -258,13 +457,34 @@ class TocSheet {
       }
 
     } catch (err) {
-      console.log(err)
+      console.err(err.message);
       return undefined;
     }
   }
 
   fetchSheet() {
-    return this.spreadsheetUtil.getSheetById(this.loadTocSheetId())
+    try {
+      const id = this.loadTocSheetId();
+      if (!id) {
+        throw new Error("The sheet ID is null or undefined.");
+      }
+
+      const sheet = this.ssUtil.getSheetById(id);
+      if (!sheet) {
+        throw new Error(`No sheet found with ID: ${id}`);
+      }
+
+      return sheet;
+
+    } catch (err) {
+      console.error("Error fetching the sheet", err.stack);
+      return undefined;
+    }
+  }
+
+  doesExistSheet() {
+    const sheet = this.fetchSheet()
+    return sheet ? true : false;
   }
 
   getSheetId() {
@@ -278,7 +498,7 @@ class TocSheet {
     try {
       return this.allSheetIds;
     } catch (err) {
-      console.log(err)
+      console.err(err.message);
       return this.allSheetIds = []
     }
   }
@@ -286,7 +506,7 @@ class TocSheet {
 
 
   getRangeByName(name) {
-    const range = this.spreadsheetUtil.getRangeByName(name)
+    const range = this.ssUtil.getRangeByName(name)
 
     if (range) {
       return range
@@ -372,16 +592,16 @@ class TocSheet {
       }
       sheet.setFrozenRows(num)
     } catch (err) {
-      console.log(err, `| Could not find sheet with id . ${this.sheetId}`)
+      console.err(err, `| Could not find sheet with id . ${this.sheetId}`)
     }
   }
   remove() {
     const propKeys = [this.key, this.backupKey, this.tocSheetIdKey];
     const sheet = this.fetchSheet();
     if (sheet) {
-      this.spreadsheetUtil.deleteSheet(sheet);
+      this.ssUtil.deleteSheet(sheet);
     }
-    for(let key of propKeys){
+    for (let key of propKeys) {
       this.propsStorage.deleteSheetProp(key);
     }
   }
@@ -391,7 +611,7 @@ class TocSheet {
     callback();
   }
 
- 
+
   updateState(newState = {}) {
     for (let key in newState) {
       if (this.hasOwnProperty(key)) {
@@ -418,7 +638,7 @@ class TocSheet {
         this.createSheet(backup.name);
       }
       this.formatSheet();
-      console.log("newSheetId: ", this.sheetId)
+      console.log(`New Sheet Id: ${this.sheetId}`);
       //const {name, titles, sheetId, allSheetIds, rangeHeaderName, rangeHeaderA1Notation, rangeContentsName, rangeContentsA1Notation} = this;
       //dataToSave = {name, titles, sheetId, allSheetIds, rangeHeaderName, rangeHeaderA1Notation, rangeContentsName, rangeContentsA1Notation}
       //destructure if more efficient before saving
