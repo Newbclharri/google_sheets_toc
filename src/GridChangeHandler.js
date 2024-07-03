@@ -5,7 +5,7 @@ class GridChangeHandler {
         this.myToc = obj;
         this.sheetId = id
         this.ssUtil = SpreadsheetUtility.getInstance();
-        this.uI = UiUtil.getInstance(); //SpreadsheetApp.getUi();
+        // this.uI = UiUtil.getInstance(); //SpreadsheetApp.getUi();
         this.currentListOfSheetIds = this.myToc.fetchSheetIds();
         this.propsStorage = PropertiesServiceStorage.getInstance(); //PropertiesService
         //this.handleRemoveGrid();
@@ -27,6 +27,8 @@ class GridChangeHandler {
     }
 
     handleUserInsertsSheet() {
+        const activeSheetId = this.ssUtil.getActive().getActiveSheet().getSheetId();
+
         try {
             //logic
             //currentContentIds
@@ -38,7 +40,7 @@ class GridChangeHandler {
             //insertedTabs
             const insertedContentIds = this.findDifferences(currContentIds, initialContentIds);
             console.log("INSERTED CONTENT IDS: ", insertedContentIds)
-            console.log()
+            removeTocSheetIdFromInsertedIds(insertedContentIds, this.sheetId);
 
             // Check if insertedContentIds exists and has length
             if (!insertedContentIds.length) {
@@ -64,14 +66,15 @@ class GridChangeHandler {
             const rangeStartColumn = range.getColumn();
 
             //sheft cells down to insert new sheet links at the top of the range            
-            const rangetoInsertCells = sheet.getRange(range.getRow(),rangeStartColumn,links.length,1);
+            const rangetoInsertCells = sheet.getRange(range.getRow(), rangeStartColumn, links.length, 1);
             this.shiftCellsDown(rangetoInsertCells);
-            
+
             // Define the range to paste the links
             const rangeToPaste = sheet.getRange(2, rangeStartColumn, links.length, 1);
             rangeToPaste.setRichTextValues(links);
-            
+
             // Call additional functions if necessary
+            this.myToc.setSheetDataByIdPropertiesFromLinks(links)
             // updateNamedRangeRows();
             this.updateNamedRangeRows()
 
@@ -83,13 +86,25 @@ class GridChangeHandler {
 
             //save TOC state
             //this.myToc.save();
-           // this.myToc.saveBackup();
+            // this.myToc.saveBackup();
 
         } catch (err) {
             console.error('Error processing inserted content:', err.stack);
             return; // Early return on error
         }
 
+        function removeTocSheetIdFromInsertedIds(insertedIds, targetId) {
+            return removeElementFromArray(insertedIds, targetId);
+
+        }
+
+        function removeElementFromArray(array, element) {
+            const targetIndex = array.indexOf(element);
+            if (targetIndex > -1) {
+                array.splice(targetIndex, 1)
+            }
+            return array;
+        }
     }
 
 
@@ -106,7 +121,42 @@ class GridChangeHandler {
     }
 
     handleUserRemovesContentTab() {
-        //logic
+         // Get current list of sheet IDs
+         const currSheetIds = this.myToc.fetchSheetIds(); // Returned data is type number
+        
+         // Fetch stored sheet data
+         const storedSheetData = this.myToc.getSheetDataById();
+         
+         // Convert stored sheet IDs from string to number
+         const storedSheetIds = Object.keys(storedSheetData).map(str => Number(str));
+         
+         // Find differences between current and stored sheet IDs
+         const differences = this.findDifferences(currSheetIds, storedSheetIds);
+        // console.log(`CURR: ${currSheetIds}: ${currSheetIds.length} | STORED: ${Object.keys(storedSheetData)}: ${Object.keys(storedSheetData).length}`)
+        const range = this.myToc.getRangeContents();
+
+        if(!range){
+            console.error("Could not get the range to remove contents.");
+            return;
+        }
+
+        if(differences.length){
+            const contentNames =  range.getValues();
+
+            //Filter and flatten contentLinks array
+            const contentLinks = range.getRichTextValues().filter(link => link != null).map(link => link[0]);
+
+            if(contentLinks && contentLinks.length){
+                contentLinks.forEach(link =>{
+                    const url = link.getLinkUrl();
+                    const linkId = this.myToc.getSheetGIDFromRichText(url);
+                    console.log(`LINKID: ${linkId}: ${typeof linkId}`)
+                })
+            }
+        }
+
+
+        console.log( `Differences: ${differences}` )
     }
 
 
@@ -115,7 +165,7 @@ class GridChangeHandler {
         let rangeContents;
         try {
             //get TOC contents
-            rangeContents = this.myToc.getRangeContents();            
+            rangeContents = this.myToc.getRangeContents();
             const sheetNames = rangeContents.getValues().filter((row, index) => row[0] !== "").map(row => row[0])
             // console.log("SHEETNAMES: ", sheetNames)
 
@@ -131,7 +181,7 @@ class GridChangeHandler {
 
             return contentSheetIds;
         } catch (err) {
-            console.error("Error in getContentIdsFromTocSheet:",err.stack);
+            console.error("Error in getContentIdsFromTocSheet:", err.stack);
         }
     }
 
@@ -149,7 +199,7 @@ class GridChangeHandler {
 
         try {
             //named range details
-            console.log("NEW LAST ROW: " ,range.getLastRow())
+            console.log("NEW LAST ROW: ", range.getLastRow())
             const a1Notation = range.getA1Notation();
             this.myToc.rangeContentsA1Notation = a1Notation;
             console.log(`New range updated successfully: ${a1Notation}`);
@@ -158,26 +208,26 @@ class GridChangeHandler {
         }
     }
 
-    removeBlanksFromRange(range){
-        if(range){
+    removeBlanksFromRange(range) {
+        if (range) {
             const sheet = range.getSheet();
             const rangeRowStart = range.getRow();
             const arrayEmptyIndices = [];
             const values = range.getValues();
             let blankRow;
             //search range values for blank cells and push the index into an array
-            values.forEach((row, blankRowIndex) =>{
-                row.forEach(value =>{
-                   if(value == ""){
-                    blankRow = rangeRowStart + blankRowIndex;
-                    sheet.deleteRow(blankRow);
-                   }
+            values.forEach((row, blankRowIndex) => {
+                row.forEach(value => {
+                    if (value == "") {
+                        blankRow = rangeRowStart + blankRowIndex;
+                        sheet.deleteRow(blankRow);
+                    }
                 })
             });
         }
     }
 
-    shiftCellsDown(range){
+    shiftCellsDown(range) {
         const direction = this.ssUtil.spreadsheetApp.Dimension.ROWS;
         range.insertCells(direction);
     }

@@ -1,6 +1,7 @@
 class TocSheet {
 
   constructor(params = {}, spreadsheetUtil, propsStorage) {
+    this.name = params.name || "Table of Contents";
     this.sheetId = params.sheetId || null;
     this.allSheetIds = params.allSheetIds || null;
     this.ssUtil = spreadsheetUtil || SpreadsheetUtility.getInstance();
@@ -8,13 +9,13 @@ class TocSheet {
     this.key = "tocSheet";
     this.backupKey = "tocBackup";
     this.tocSheetIdKey = "tocSheetId";
-    this.name = params.name || "Table of Contents";
     this.titles = params.titles || null;
     this.rangeHeaderName = params.rangeHeaderName || null;
     this.rangeContentsName = params.rangeContentsName || null;
     this.rangeHeaderA1Notation = params.rangeHeaderA1Notation || null;
     this.rangeContentsA1Notation = params.rangeContentsA1Notation || null;
     this.dataRangeValues = params.dataRangeValues;
+    this.sheetDataById = params.sheetDataById;
   }
 
   static isValidJson(str) {
@@ -87,9 +88,11 @@ class TocSheet {
   initialize(name = this.name) {
     this.createSheet(name);
     this.allSheetIds = this.fetchSheetIds();
-    this.contentIds = this.fetchSheetIdsNotEqualTo(this.sheetId)
+    this.contentIds = this.fetchSheetIdsNotEqualTo(this.sheetId);
+    this.sheetDataById = this.generateSheetDataById();
     this.titles = this.fetchTitleNames();
     this.createSheetLinks(this.contentIds);
+    this.setSheetDataByIdPropertiesFromLinks(this.links);
     this.initializeNamedRanges();
     this.formatSheet();
   }
@@ -116,7 +119,9 @@ class TocSheet {
   }
 
   setName(newName) {
+    const sheetId = this.loadTocSheetId();
     this.name = newName;
+    this.sheetDataById[sheetId].name = newName;
   }
 
   setTitles(titles) {
@@ -127,6 +132,152 @@ class TocSheet {
     this.titles = titles;
     console.log(`${titles.length} titles added successfully: ${titles}`)
     return;
+  }
+
+  generateSheetDataById(allSheetIds = this.allSheetIds) {
+    allSheetIds = allSheetIds || this.fetchSheetIds();
+
+    const sheetData = {};
+
+    if (allSheetIds.length > 0) {
+      allSheetIds.forEach(id => {
+        try {
+          const sheet = this.ssUtil.getSheetById(id);
+          if (sheet) {
+            const sheetName = sheet.getName() || null;
+            if (!sheetName) {
+              console.error(`Error finding sheet name for id ${id}`);
+            }
+            sheetData[id] = { id, name: sheetName };
+          } else {
+            throw new Error(`Sheet with id ${id} does not exist @generateSheetDetailsById`);
+          }
+        } catch (err) {
+          console.error(`Error processing sheet id ${id}:`, err.stack);
+          ///////////////////EVEN AFTER FXN createSheet EXECUTES, THE SHEET IS NOT ACCESSIBLE
+          //CATCH THE ERROR AND UPDATE TOC SHEET DATA 
+          const sheetId = this.sheetId || this.loadTocSheetId();
+          switch (id) {
+            case sheetId:
+              if (!sheetData[id]) {
+                sheetData[id] = {id, name: this.name, url: null}
+                console.log("Caught id error: ", sheetData[id])
+              }
+              break;
+            //Add more cases as needed
+            default:
+              console.warn(`${id} was not handled.`)
+              break;
+          }
+        }
+      });
+    } else {
+      console.warn("No sheet IDs provided or fetched.");
+    }
+
+    return sheetData;
+  }
+
+  setSheetDataByIdPropertiesFromLinks(links) {
+    if (!(Array.isArray(links) && links.length)) {
+      console.error(`Expected array. Received ${typeof links}`);
+      return;
+    }
+    let flattenedLinks;
+    if(isArrayOfArrays(links)){
+     links = links.map(array => array[0]);
+    }
+    links.forEach(link => {
+      let url, id, name;
+      const obj = this.sheetDataById;
+  
+      try {
+        url = link.getLinkUrl();
+        if (!url) {
+          throw new Error('Invalid link URL');
+        }
+  
+        id = this.getSheetGIDFromRichText(url);
+        if (!id) {
+          throw new Error('Unable to extract sheet ID from URL');
+        }
+  
+        name = link.getText();
+        if (!name) {
+          throw new Error('Link text is empty');
+        }
+  
+        // Only update if the id does not exist in sheetDataById, or if the name or url has changed
+        if (!this.sheetDataById[id] || this.sheetDataById[id].name !== name || this.sheetDataById[id].url !== url) {
+          this.sheetDataById[id] = {
+            id,
+            name,
+            url
+          };
+        }
+
+  
+      } catch (err) {
+        console.error(`Problems setting sheetDataById property for link with URL ${url}. Error: ${err.message}`, err.stack);
+      }
+    });
+    function isArrayOfArrays(array){
+      return array.every(element => Array.isArray(element));
+    }
+  }
+
+  generateSheetDataFromLinks(){
+    const range = this.getRangeContents();
+    let links
+
+    if(!range){
+      console.error(`Can't get the range to generate data`);
+      return;
+    }
+
+    links = range.getRichTextValues().filter(link => link[0] != null).map(link => link[0]);
+
+    if(links){
+
+      links.forEach(link =>{
+        let url = link.getLinkUrl();
+        if(!url){
+          throw new Error ("Invalid url");
+        }
+
+        let id = this.getSheetGIDFromRichText(url);
+        if(!id){
+          throw new Error("Could extract id from url");
+        }
+
+        let name = link.getText();
+        if(!name){
+          throw new Error("Name unknown")
+        }
+
+         // Only update if the id does not exist in sheetDataById, or if the name or url has changed
+         if (!this.sheetDataById[id] || this.sheetDataById[id].name !== name || this.sheetDataById[id].url !== url) {
+          this.sheetDataById[id] = {
+            id,
+            name,
+            url
+          };
+        }
+
+        return this.sheetDataById;
+      })
+
+    }
+
+    
+
+
+
+    return;
+  }
+
+  getSheetDataById() {
+    return this.sheetDataById || this.generateSheetDataFromLinks();
   }
 
   updateTitlesByIds(ids) {
@@ -188,7 +339,12 @@ class TocSheet {
     return this.ssUtil.getSheetIdsNotEqualTo(id);
   }
 
-  createSheetLinks(contentIds = this.contentIds) {
+  createSheetLink(contentId, url = null, underline = false, bold = true) {
+    const link = this.ssUtil.createSheetLink(contentId, url, underline, bold);
+    return link;
+  }
+
+  createSheetLinks(contentIds = this.contentIds, url = null, underline = false, bold = true) {
     if (!(contentIds && contentIds.length)) {
       throw new Error("No ids to convert to links")
     }
@@ -196,12 +352,44 @@ class TocSheet {
     const links = [];
     let link;
     contentIds.forEach(id => {
-      link = this.ssUtil.createSheetLink(id, false, true)
+      link = this.ssUtil.createSheetLink(id, url, underline, bold)
+
       links.push([link])
     });
 
+    this.links = links;
     return links;
   }
+
+  getSheetGIDFromRichText(url) {
+    // Check if the URL is provided
+    if (!url) {
+      throw new Error(`Expect a url. Received ${url}`);
+    }
+
+    // Check if the input is a string
+    if (typeof url !== "string") {
+      throw new Error(`Expect string. Received ${typeof url}`);
+    }
+
+    // Extract the GID from the URL
+    const gid = extractGID(url);
+    return gid;
+
+    // Helper function to extract GID from the URL
+    function extractGID(url) {
+      const urlPattern = /#gid=(\d+)/;
+      const match = url.match(urlPattern);
+
+      // Return the GID if found, otherwise null
+      if (match && match.length > 1) {
+        return match[1];
+      }
+      return null;
+    }
+  }
+
+
 
 
   fetchTitleNames() {
@@ -245,6 +433,7 @@ class TocSheet {
       titles: this.titles,
       allSheetIds: this.allSheetIds,
       contentIds: this.contentIds,
+      sheetDataById: this.sheetDataById,
       rangeHeaderName: this.rangeHeaderName,
       rangeHeaderA1Notation: this.rangeHeaderA1Notation,
       rangeContentsName: this.rangeContentsName,
@@ -343,30 +532,30 @@ class TocSheet {
 
   getRangeContents() {
     let rangeHeader, rangeContents;
-  
+
     try {
       // Fetch the sheet and attempt to get the range by A1 notation
       const sheet = this.fetchSheet();
       if (!sheet) {
         throw new Error("Sheet not found.");
       }
-  
+
       const lastRow = sheet.getLastRow();
       rangeHeader = this.getRangeByName(this.rangeHeaderName) || sheet.getRange(1, 1);
-  
+
       rangeContents = this.getRangeByName(this.rangeContentsName);
       if (!rangeContents) {
         // Attempt to get range contents via A1 notation
         rangeContents = sheet.getRange(this.rangeContentsA1Notation);
       }
-  
+
       if (!rangeContents) {
         // Set range to default (1st row, 1st column)
         const rowsHeader = rangeHeader.getLastRow();
         const startRow = rowsHeader + 1;
         rangeContents = sheet.getRange(startRow, 1, lastRow - rowsHeader);
       }
-  
+
       // Get the values in the range and find the rows to delete
       const data = rangeContents.getValues();
       const rowsToDelete = [];
@@ -377,34 +566,34 @@ class TocSheet {
           rowsToDelete.push(index + rangeContents.getRow());
         }
       });
-  
+
       // Remove rows from bottom to top to avoid index shifting issues
       for (let i = rowsToDelete.length - 1; i >= 0; i--) {
         sheet.deleteRow(rowsToDelete[i]);
       }
-  
+
       // Recalculate the range after removing blank rows
       const newLastRow = sheet.getLastRow();
       const rowsHeader = rangeHeader.getLastRow();
       const startRow = rowsHeader + 1;
       const startColumn = rangeContents.getColumn();
       const adjustedRange = sheet.getRange(startRow, startColumn, newLastRow - rowsHeader);
-  
+
       // Reset the contents named range
       this.setNamedRange(this.rangeContentsName, adjustedRange);
-  
+
       // Update contents A1 notation
       this.rangeContentsA1Notation = this.getRangeByName(this.rangeContentsName).getA1Notation();
       return adjustedRange;
-  
+
     } catch (err) {
       console.error(err);
     }
-  
+
     // If no range is found or set, return null or handle as needed
     return null;
   }
-  
+
 
 
   fetchSheetValues() {

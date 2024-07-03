@@ -51,6 +51,7 @@ function start(){
     const myToc = new TocSheet({},spreadsheetUtil, propsStor);
     let propsToSave;
     myToc.initialize();
+
     console.log("From ui manager tocKey: ", myToc.key)
     propsToSave = [["tocSheetId", myToc.sheetId], [myToc.key, myToc.toJSON()], [myToc.backupKey, myToc.getBackUp()]];
     //////////INITIAL SAVE//////////////
@@ -72,7 +73,7 @@ function confirmDelete(){
       const triggerManager = TriggerManager.getInstance(scriptApp, spreadsheetUtil);
       const myToc = new TocSheet(loaded);
       myToc.handleMenuSelectRemove(()=>{
-        return triggerManager.deleteTrigger(triggerManager.getEventType().ON_CHANGE, "handleOnChange");
+        return triggerManager.deleteTrigger(triggerManager.getEventType().ON_CHANGE, "onChange");
       });
       uI.alert("deleted");
     }else{

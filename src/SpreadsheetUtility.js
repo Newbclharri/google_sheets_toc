@@ -4,9 +4,9 @@ class SpreadsheetUtility {
       return SpreadsheetUtility.instance
     }
     this.spreadsheetApp = getSpreadsheetApp(); //|| SpreadsheetApp;
-    this.activeSheet = this.spreadsheetApp.getActive();
-    this.url = this.activeSheet.getUrl();
-    this.sheets = this.activeSheet.getSheets();
+    this.spreadsheet = this.spreadsheetApp.getActive();
+    this.url = this.spreadsheet.getUrl();
+    this.sheets = this.spreadsheet.getSheets();
     this.newTextStyle = this.spreadsheetApp.newTextStyle();
     this.newRichTextValue = this.spreadsheetApp.newRichTextValue();
     SpreadsheetUtility.instance = this;
@@ -20,7 +20,7 @@ class SpreadsheetUtility {
   }
 
   getActive() {
-    return this.activeSheet;
+    return this.spreadsheet;
   }
 
   getUi() {
@@ -28,16 +28,16 @@ class SpreadsheetUtility {
   }
 
   insertSheet(name) {
-    return this.activeSheet.insertSheet(name, 0);
+    return this.spreadsheet.insertSheet(name, 0);
 
   }
 
   setActiveSheet(sheet) {
-    return this.activeSheet.setActiveSheet(sheet);
+    return this.spreadsheet.setActiveSheet(sheet);
   }
 
   setNamedRange(name, range) {
-    this.activeSheet.setNamedRange(name, range)
+    this.spreadsheet.setNamedRange(name, range)
   }
 
   getSheets() {
@@ -49,10 +49,9 @@ class SpreadsheetUtility {
   }
 
   getSheetByName(name) {
-    return this.activeSheet.getSheetByName(name)
+    return this.spreadsheet.getSheetByName(name)
   }
   getSheetById(id) {
-    console.log("is a number: ", !isNaN(id))
     if (isNaN(id)) {
       throw new Error(`${id} is not a number.`)
     }
@@ -69,7 +68,7 @@ class SpreadsheetUtility {
   }
 
   getSheetIds() {
-    return this.activeSheet.getSheets().map(sheet => sheet.getSheetId());
+    return this.spreadsheet.getSheets().map(sheet => sheet.getSheetId());
   }
 
   getSheetIdsNotEqualTo(tocId) {
@@ -80,17 +79,17 @@ class SpreadsheetUtility {
   }
 
   getRangeByName(name) {
-    return this.activeSheet.getRangeByName(name)
+    return this.spreadsheet.getRangeByName(name)
   }
 
   getA1Notation(range) {
     return range.getA1Notation()
   }
 
-  createSheetLink(sheetId, underline = false, bold = false) {
+  createSheetLink(sheetId, url = null, underline = false, bold = false) {
     if (!isNaN(sheetId)) {
       const sheet = this.getSheetById(sheetId);
-      const sheetUrl = this.url + "?gid=" + sheetId + "#gid=" + sheetId;
+      const sheetUrl = url || this.url + "?gid=" + sheetId + "#gid=" + sheetId;
       const linkStyle = this.newTextStyle
         .setUnderline(underline)
         .setBold(bold)
@@ -120,6 +119,6 @@ class SpreadsheetUtility {
   }
 
   deleteSheet(sheet) {
-    this.activeSheet.deleteSheet(sheet);
+    this.spreadsheet.deleteSheet(sheet);
   }
 }

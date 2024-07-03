@@ -2,6 +2,7 @@
 /////////THAT'S WHY I CHOSE TO BREAK UP EDIT AND CHANGE HANDLING INTO SEPARATE FILES
 function onEdit(e, changeType) {
     console.log("CHANGE TYPE: ", changeType);
+    console.log("e.source.name: ", e.source.name)
     const spreadsheetUtil = SpreadsheetUtility.getInstance();
     const propsStorage = new PropertiesServiceStorage();
     const sheetId = propsStorage.load("tocSheetId");
