@@ -461,6 +461,34 @@ class TocSheet {
     return links;
   }
 
+  isSheetLink(richTextValue) {
+    const message = "Invalid sheet link"
+
+    const url = richTextValue.getLinkUrl();
+    if (!url) {
+      console.error(`${message}, with url ${url}.`);
+      return false;
+    }
+
+    const id = this.getSheetGIDFromRichText(url);
+    if (!id) {
+      console.error(`${message}, with id ${id}.`);
+      return false;
+    }
+
+    if (!this.isValidSheetId(id)) {
+      console.error(`${message}. Cannot find sheet with id ${id}`);
+      return false;
+    }
+
+    return true;
+  }
+
+  isValidSheetId(id) {
+    const sheetIds = this.fetchSheetIds();
+    return sheetIds.includes(id);
+  }
+
   getSheetGIDFromRichText(url) {
     // Check if the URL is provided
     if (!url) {
@@ -584,51 +612,6 @@ class TocSheet {
   }
 
 
-  // getRangeContents() {
-  //   let rangeHeader, rangeContents;
-
-  //   try {
-
-  //     // Fetch the sheet and attempt to get the range by A1 notation
-  //     const sheet = this.fetchSheet();
-  //     if (!sheet) {
-  //       throw new Error("Sheet not found.");
-  //     }
-  //     const lastRow = sheet.getLastRow();
-  //     rangeHeader = this.getRangeByName(this.rangeHeaderName) || sheet.getRange(1,1)
-
-  //     rangeContents = this.getRangeByName(this.rangeContentsName);
-  //     if (!rangeContents) {
-  //       //Attempt to get range contents via A1Notation
-  //       rangeContents = sheet.getRange(this.rangeContentsA1Notation);
-  //     }
-
-  //     if (!rangeContents) {
-  //       //set range to default (1st row, 1st column);
-  //       const rowsHeader = rangeHeader.getLastRow();
-  //       const startRow = rowsHeader + 1;
-  //       rangeContents = sheet.getRange(startRow, 1, lastRow - rowsHeader);
-  //     }
-
-  //     //adjust range for data processing
-  //     const rowsHeader = rangeHeader.getLastRow();
-  //     const startRow = rowsHeader + 1;
-  //     const startColumn = rangeContents.getColumn();
-  //     const adjustedRange = sheet.getRange(startRow, startColumn, lastRow - rowsHeader);
-
-  //     //Reset the contents named range
-  //     this.setNamedRange(this.rangeContentsName, adjustedRange);
-
-  //     //Update contents A1 notation
-  //     this.rangeContentsA1Notation = this.getRangeByName(this.rangeContentsName).getA1Notation;
-  //     return adjustedRange;
-
-  //   } catch (err) {
-  //     console.error(err);     
-  //   }
-  //   // If no range is found or set, return null or handle as needed
-  //   return null;
-  // }
 
   getRangeContents() {
     let rangeHeader, rangeContents;
@@ -718,7 +701,7 @@ class TocSheet {
 
   getRichTextValues() {
     const rangeContents = this.ssUtil.getRangeByName(this.rangeContentsName);
-    this.richTextValues = rangeContents.getRichTextValues();
+    return this.richTextValues = rangeContents.getRichTextValues();
   }
 
   updateBackup() {
