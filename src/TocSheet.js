@@ -76,6 +76,12 @@ class TocSheet {
     return false;
   }
 
+  static findDifferences(arry1, arry2) {
+    return arry1
+      .filter(element => !arry2.includes(element))
+      .concat(arry2.filter(element => !arry1.includes(element)));
+  }
+
   save(key = this.key, data = null) {
     data = data || this.toJSON();
     this.propsStorage.save(key, data);
@@ -87,9 +93,9 @@ class TocSheet {
 
   initialize(name = this.name) {
     this.createSheet(name);
+    this.sheetDataById = this.generateSheetDataById();
     this.allSheetIds = this.fetchSheetIds();
     this.contentIds = this.fetchSheetIdsNotEqualTo(this.sheetId);
-    this.sheetDataById = this.generateSheetDataById();
     this.titles = this.fetchTitleNames();
     this.createSheetLinks(this.contentIds);
     this.setSheetDataByIdPropertiesFromLinks(this.links);
@@ -134,49 +140,143 @@ class TocSheet {
     return;
   }
 
-  generateSheetDataById(allSheetIds = this.allSheetIds) {
-    allSheetIds = allSheetIds || this.fetchSheetIds();
-
+  generateSheetDataById() {
+    const currentlistofSheetIds = this.fetchSheetIds();
     const sheetData = {};
 
-    if (allSheetIds.length > 0) {
-      allSheetIds.forEach(id => {
-        try {
-          const sheet = this.ssUtil.getSheetById(id);
-          if (sheet) {
-            const sheetName = sheet.getName() || null;
-            if (!sheetName) {
-              console.error(`Error finding sheet name for id ${id}`);
-            }
-            sheetData[id] = { id, name: sheetName };
-          } else {
-            throw new Error(`Sheet with id ${id} does not exist @generateSheetDetailsById`);
-          }
-        } catch (err) {
-          console.error(`Error processing sheet id ${id}:`, err.stack);
-          ///////////////////EVEN AFTER FXN createSheet EXECUTES, THE SHEET IS NOT ACCESSIBLE
-          //CATCH THE ERROR AND UPDATE TOC SHEET DATA 
-          const sheetId = this.sheetId || this.loadTocSheetId();
-          switch (id) {
-            case sheetId:
-              if (!sheetData[id]) {
-                sheetData[id] = {id, name: this.name, url: null}
-                console.log("Caught id error: ", sheetData[id])
-              }
-              break;
-            //Add more cases as needed
-            default:
-              console.warn(`${id} was not handled.`)
-              break;
-          }
+    currentlistofSheetIds.forEach(id => {
+      try {
+        const url = `#gid=${id}`;
+        const name = this.ssUtil.getSheetById(id).getName();
+        if (!name) {
+          throw new Error(`Error retrieving name for sheet with id ${id}`);
         }
-      });
-    } else {
-      console.warn("No sheet IDs provided or fetched.");
-    }
+        sheetData[id] = {
+          id,
+          name,
+          url
+        }
+      } catch (err) {
+        console.error(`Error processing sheet id ${id}:`, err.stack);
+        ///////////////////EVEN AFTER FXN createSheet EXECUTES, THE SHEET IS NOT ACCESSIBLE
+        //CATCH THE ERROR AND UPDATE TOC SHEET DATA 
+        const sheetId = this.sheetId || this.loadTocSheetId();
+        switch (id) {
+          case sheetId:
+            sheetData[id] = { id, name: this.name, url: `#gid=${id}` }
+            console.log("Caught id error: ", sheetData[id])
+            break;
+          //Add more cases as needed
+          default:
+            console.warn(`${id} was not handled.`)
+            break;
+        }
+      }
+    });
 
     return sheetData;
   }
+
+  cleanUpSheetDataById(cleanType = "soft") {
+    try {
+      // Retrieve most current list of sheet ids
+      const liveSheetIdList = this.ssUtil.getSheetIds();
+
+      // Convert object keys to type number (all keys are numeric ids of each sheet)
+      const storedIds = Object.keys(this.sheetDataById).map(str => Number(str));
+
+      // Find differences between current list of IDs and stored IDs
+      const differences = TocSheet.findDifferences(liveSheetIdList, storedIds);
+
+      // Add or remove data based on differences
+      differences.forEach(id => {
+        if (liveSheetIdList.includes(id)) {
+          this.addSheetDataById(id); //Add live sheet data if not already stored
+        } else {
+          this.deleteSheetDataById(id);           // Remove sheet data if a live sheet does not exist
+
+        }
+      });
+
+      return this.sheetDataById;
+
+    } catch (err) {
+      console.error("Error cleaning up sheet data storage.", err.stack);
+      //return null;
+    }
+
+  }
+
+  addSheetDataById(id) {
+    // Ensure input is a number
+    if (typeof id !== "number") {
+      console.error(`Expected type number. Received type ${typeof id}`);
+      return;
+    }
+
+    // Ensure id is a valid sheet id
+    const liveSheetIds = this.ssUtil.getSheetIds();
+    if (!liveSheetIds.includes(id)) {
+      console.error(`Invalid sheet Id`);
+      return;
+    }
+
+    // Construct sheet url
+    const url = `#gid=${id}`;
+
+    // Retrieve sheet name
+    const name = this.ssUtil.getSheetById(id).getName();
+    if (!name) {
+      throw new Error(`Could not retrieve name for Sheet with id ${name}`);
+    }
+
+    // Store the sheet data
+    this.sheetDataById[id] = {
+      id,
+      name,
+      url
+    }
+
+  }
+
+  deleteSheetDataById(id, deletionType = "soft") {
+    // Ensure input is a number
+    if (typeof id !== "number") {
+      console.error(`Expected type number. Received type ${typeof id}`);
+      return;
+    }
+
+    if (deletionType === "hard") {
+      // Perform hard deletion
+      delete this.sheetDataById[id];
+      return;
+    }
+
+    // Soft deletion logic
+    const tocSheetId = Number(this.loadTocSheetId()) || Number(this.sheetId);
+
+    if (!tocSheetId) {
+      console.error("Error retrieving TOC sheet ID.");
+      // Fallback: Ensures main TOC sheet data is not deleted
+      if (this.sheetDataById[id]) {
+        const sheetName = this.sheetDataById[id]?.name; // Ensure property exists
+        const tocSheetName = this.name;
+
+        if (sheetName !== tocSheetName) {
+          delete this.sheetDataById[id];
+        } else {
+          console.error(`Cannot delete sheet data for sheet: ${sheetName}`);
+        }
+      }
+      return;
+    }
+
+    // Ensure we're not deleting the TOC sheet data
+    if (id !== tocSheetId) {
+      delete this.sheetDataById[id];
+    }
+  }
+
 
   setSheetDataByIdPropertiesFromLinks(links) {
     if (!(Array.isArray(links) && links.length)) {
@@ -184,29 +284,29 @@ class TocSheet {
       return;
     }
     let flattenedLinks;
-    if(isArrayOfArrays(links)){
-     links = links.map(array => array[0]);
+    if (isArrayOfArrays(links)) {
+      links = links.map(array => array[0]);
     }
     links.forEach(link => {
       let url, id, name;
       const obj = this.sheetDataById;
-  
+
       try {
         url = link.getLinkUrl();
         if (!url) {
           throw new Error('Invalid link URL');
         }
-  
+
         id = this.getSheetGIDFromRichText(url);
         if (!id) {
           throw new Error('Unable to extract sheet ID from URL');
         }
-  
+
         name = link.getText();
         if (!name) {
           throw new Error('Link text is empty');
         }
-  
+
         // Only update if the id does not exist in sheetDataById, or if the name or url has changed
         if (!this.sheetDataById[id] || this.sheetDataById[id].name !== name || this.sheetDataById[id].url !== url) {
           this.sheetDataById[id] = {
@@ -216,47 +316,47 @@ class TocSheet {
           };
         }
 
-  
+
       } catch (err) {
         console.error(`Problems setting sheetDataById property for link with URL ${url}. Error: ${err.message}`, err.stack);
       }
     });
-    function isArrayOfArrays(array){
+    function isArrayOfArrays(array) {
       return array.every(element => Array.isArray(element));
     }
   }
 
-  generateSheetDataFromLinks(){
+  generateSheetDataFromLinks() {
     const range = this.getRangeContents();
     let links
 
-    if(!range){
+    if (!range) {
       console.error(`Can't get the range to generate data`);
       return;
     }
 
     links = range.getRichTextValues().filter(link => link[0] != null).map(link => link[0]);
 
-    if(links){
+    if (links) {
 
-      links.forEach(link =>{
+      links.forEach(link => {
         let url = link.getLinkUrl();
-        if(!url){
-          throw new Error ("Invalid url");
+        if (!url) {
+          throw new Error("Invalid url");
         }
 
         let id = this.getSheetGIDFromRichText(url);
-        if(!id){
+        if (!id) {
           throw new Error("Could extract id from url");
         }
 
         let name = link.getText();
-        if(!name){
+        if (!name) {
           throw new Error("Name unknown")
         }
 
-         // Only update if the id does not exist in sheetDataById, or if the name or url has changed
-         if (!this.sheetDataById[id] || this.sheetDataById[id].name !== name || this.sheetDataById[id].url !== url) {
+        // Only update if the id does not exist in sheetDataById, or if the name or url has changed
+        if (!this.sheetDataById[id] || this.sheetDataById[id].name !== name || this.sheetDataById[id].url !== url) {
           this.sheetDataById[id] = {
             id,
             name,
@@ -269,7 +369,7 @@ class TocSheet {
 
     }
 
-    
+
 
 
 

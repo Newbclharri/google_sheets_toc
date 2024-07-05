@@ -30,6 +30,8 @@ function onChange(e) {
                     break;
                 case "REMOVE_GRID":
                     handleGridChange(myToc, sheetId, "REMOVE_GRID");
+                    myToc.save();
+                    myToc.saveBackup();
                     break;
                 case "OTHER":
                     // getRenamedSheetIds(spreadsheetUtil, e.changeType, myToc);

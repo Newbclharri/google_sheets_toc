@@ -16,7 +16,7 @@ class GridChangeHandler {
         if (this.isRemovedTocTab()) {
             this.handleUserRemovesTocTab();
         } else {
-
+            this.handleUserDeletesSheet();
         }
     }
 
@@ -120,44 +120,71 @@ class GridChangeHandler {
 
     }
 
-    handleUserRemovesContentTab() {
-         // Get current list of sheet IDs
-         const currSheetIds = this.myToc.fetchSheetIds(); // Returned data is type number
-        
-         // Fetch stored sheet data
-         const storedSheetData = this.myToc.getSheetDataById();
-         
-         // Convert stored sheet IDs from string to number
-         const storedSheetIds = Object.keys(storedSheetData).map(str => Number(str));
-         
-         // Find differences between current and stored sheet IDs
-         const differences = this.findDifferences(currSheetIds, storedSheetIds);
-        // console.log(`CURR: ${currSheetIds}: ${currSheetIds.length} | STORED: ${Object.keys(storedSheetData)}: ${Object.keys(storedSheetData).length}`)
-        const range = this.myToc.getRangeContents();
+    
 
-        if(!range){
-            console.error("Could not get the range to remove contents.");
-            return;
-        }
-
-        if(differences.length){
-            const contentNames =  range.getValues();
-
-            //Filter and flatten contentLinks array
-            const contentLinks = range.getRichTextValues().filter(link => link != null).map(link => link[0]);
-
-            if(contentLinks && contentLinks.length){
-                contentLinks.forEach(link =>{
-                    const url = link.getLinkUrl();
-                    const linkId = this.myToc.getSheetGIDFromRichText(url);
-                    console.log(`LINKID: ${linkId}: ${typeof linkId}`)
-                })
+    handleUserDeletesSheet() {
+        try {
+            // Get current list of sheet IDs
+            const currSheetIds = this.myToc.fetchSheetIds(); // Returned data is type number
+    
+            // Fetch stored sheet data
+            const storedSheetData = this.myToc.getSheetDataById();
+    
+            // Convert stored sheet IDs from string to number
+            const storedSheetIds = Object.keys(storedSheetData).map(Number);
+    
+            // Find differences between current and stored sheet IDs
+            const contentsToDeleteByIds = this.findDifferences(currSheetIds, storedSheetIds);
+            console.log(`DIFFERENCES BEFORE: ${contentsToDeleteByIds}`);
+    
+            // Get the range of content
+            const range = this.myToc.getRangeContents();
+    
+            if (!range) {
+                console.error("Could not get the range to remove contents.");
+                return;
             }
+    
+            const startRow = range.getRow();
+            const sheet = range.getSheet();
+            const contentNames = range.getValues().map(row => row[0]);
+            const contentLinks = range.getRichTextValues().map(row => row[0]);
+    
+            // Accumulate rows to delete using .reduce
+            const rowsToDelete = contentLinks.reduce((rows, link, rowIndex) => {
+                const linkUrl = link.getLinkUrl();
+                const linkName = link.getText();
+                const linkId = linkUrl ? this.myToc.getSheetGIDFromRichText(linkUrl) : null;
+    
+                // Check for deleted sheet ID or name
+                const deletedSheetId = contentsToDeleteByIds.find(id => id === linkId || storedSheetData[id].name === linkName);
+
+                // Remove deleted sheet ID from stored sheet data object
+                delete storedSheetData[deletedSheetId];
+                
+                if (deletedSheetId !== undefined) {
+                    rows.push(startRow + rowIndex);
+                    
+                    // Remeve deleted sheet id from array processing
+                    const index = contentsToDeleteByIds.indexOf(deletedSheetId);
+                    if (index > -1) {
+                        contentsToDeleteByIds.splice(index, 1);
+                    }
+                }
+                return rows;
+            }, []);
+            
+            // Delete sheet links from bottom of range to the top most row:
+            // Avoids index shifting as rows are deleted
+            for (let i = rowsToDelete.length - 1; i >= 0; i--) {
+                sheet.deleteRow(rowsToDelete[i]);
+            }
+    
+        } catch (error) {
+            console.error('Error handling user removes content tab:', error.stack);
         }
-
-
-        console.log( `Differences: ${differences}` )
     }
+    
 
 
     getContentIdsFromTocSheet() {

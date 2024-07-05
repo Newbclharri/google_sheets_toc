@@ -5,7 +5,6 @@ class SpreadsheetUtility {
     }
     this.spreadsheetApp = getSpreadsheetApp(); //|| SpreadsheetApp;
     this.spreadsheet = this.spreadsheetApp.getActive();
-    this.url = this.spreadsheet.getUrl();
     this.sheets = this.spreadsheet.getSheets();
     this.newTextStyle = this.spreadsheetApp.newTextStyle();
     this.newRichTextValue = this.spreadsheetApp.newRichTextValue();
@@ -89,7 +88,7 @@ class SpreadsheetUtility {
   createSheetLink(sheetId, url = null, underline = false, bold = false) {
     if (!isNaN(sheetId)) {
       const sheet = this.getSheetById(sheetId);
-      const sheetUrl = url || this.url + "?gid=" + sheetId + "#gid=" + sheetId;
+      const sheetUrl = `#gid=${sheetId}`;
       const linkStyle = this.newTextStyle
         .setUnderline(underline)
         .setBold(bold)
