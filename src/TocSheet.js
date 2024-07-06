@@ -461,7 +461,7 @@ class TocSheet {
     return links;
   }
 
-  isSheetLink(richTextValue) {
+  isValidSheetLink(richTextValue) {
     const message = "Invalid sheet link"
 
     const url = richTextValue.getLinkUrl();
@@ -611,71 +611,120 @@ class TocSheet {
     this.ssUtil.setNamedRange(range, name)
   }
 
+  getRangeHeader() {
+    // Check if the sheet exists
+    if (!this.doesExistSheet()) {
+      console.error("Cannot get header range. TOC sheet does not exist");
+      return;
+    }
+
+    // Attempt to get the range by the named range
+    let rangeHeader = this.getRangeByName(this.rangeHeaderName);
+
+    // If the named range exists, return it
+    if (rangeHeader) {
+      return rangeHeader;
+    }
+
+    // If the named range does not exist, get the range by A1 notation
+    const sheet = this.fetchSheet();
+    rangeHeader = sheet.getRange(this.rangeHeaderA1Notation);
+
+    // If the range by A1 notation exists, set the named range and return it
+    if (rangeHeader) {
+      this.setNamedRange(rangeHeader, this.rangeHeaderName);
+      return rangeHeader;
+    }
+
+    // Fallback: default to the range at cell A1 if the previous attempts fail
+    rangeHeader = sheet.getRange(1, 1);
+    const name = this.name || "Table of Contents";
+    rangeHeader.setValue(name);
+
+    // Update range header a1Notation
+    this.rangeHeaderA1Notation = rangeHeader.getA1Notation();
+
+    // Set the named range for the fallback range and return it
+    this.setNamedRange(rangeHeader, this.rangeHeaderName);
+    return rangeHeader;
+  }
+
+
 
 
   getRangeContents() {
     let rangeHeader, rangeContents;
-
+  
     try {
-      // Fetch the sheet and attempt to get the range by A1 notation
-      const sheet = this.fetchSheet();
-      if (!sheet) {
-        throw new Error("Sheet not found.");
+      // Check if the sheet exists
+      if (!this.doesExistSheet()) {
+        console.error("Cannot get the contents range. TOC sheet does not exist");
+        return;
       }
-
-      const lastRow = sheet.getLastRow();
-      rangeHeader = this.getRangeByName(this.rangeHeaderName) || sheet.getRange(1, 1);
-
+  
+      // Get the header range
+      rangeHeader = this.getRangeHeader();
+  
+      // Attempt to get the contents range by name
       rangeContents = this.getRangeByName(this.rangeContentsName);
-      if (!rangeContents) {
-        // Attempt to get range contents via A1 notation
-        rangeContents = sheet.getRange(this.rangeContentsA1Notation);
+      if (rangeContents) {
+        return rangeContents;
       }
-
-      if (!rangeContents) {
-        // Set range to default (1st row, 1st column)
-        const rowsHeader = rangeHeader.getLastRow();
-        const startRow = rowsHeader + 1;
-        rangeContents = sheet.getRange(startRow, 1, lastRow - rowsHeader);
+  
+      // If the named range doesn't exist, attempt to get the range using A1 notation
+      const sheet = this.fetchSheet();
+      rangeContents = sheet.getRange(this.rangeContentsA1Notation);
+  
+      // If the range is successfully retrieved, set the named range and return it
+      if (rangeContents) {
+        this.setNamedRange(rangeContents, this.rangeContentsName);
+        return rangeContents;
       }
-
+  
+      // Fallback: set range to default (2nd Row, 1st column)
+      const lastRow = sheet.getLastRow();
+      let rowsHeader = rangeHeader.getLastRow();
+      let startRow = rowsHeader + 1;
+      rangeContents = sheet.getRange(startRow, 1, lastRow - rowsHeader);
+  
       // Get the values in the range and find the rows to delete
       const data = rangeContents.getValues();
-      const rowsToDelete = [];
+      const blankRowsToDelete = [];
       data.forEach((row, index) => {
-        //the retrieved range is only one column, so the check for every cell will only be one column in length
-        // ex. [[cell1], [cell1], etc]
+        // The retrieved range is only one column, so the check for every cell will only be one column in length
+        // Example: [[cell1], [cell2], etc.]
         if (row.every(cell => cell === "")) {
-          rowsToDelete.push(index + rangeContents.getRow());
+          blankRowsToDelete.push(index + rangeContents.getRow());
         }
       });
-
+  
       // Remove rows from bottom to top to avoid index shifting issues
-      for (let i = rowsToDelete.length - 1; i >= 0; i--) {
-        sheet.deleteRow(rowsToDelete[i]);
+      for (let i = blankRowsToDelete.length - 1; i >= 0; i--) {
+        sheet.deleteRow(blankRowsToDelete[i]);
       }
-
+  
       // Recalculate the range after removing blank rows
       const newLastRow = sheet.getLastRow();
-      const rowsHeader = rangeHeader.getLastRow();
-      const startRow = rowsHeader + 1;
+      rowsHeader = rangeHeader.getLastRow();
+      startRow = rowsHeader + 1;
       const startColumn = rangeContents.getColumn();
       const adjustedRange = sheet.getRange(startRow, startColumn, newLastRow - rowsHeader);
-
+  
       // Reset the contents named range
       this.setNamedRange(this.rangeContentsName, adjustedRange);
-
+  
       // Update contents A1 notation
       this.rangeContentsA1Notation = this.getRangeByName(this.rangeContentsName).getA1Notation();
       return adjustedRange;
-
+  
     } catch (err) {
       console.error(err);
     }
-
+  
     // If no range is found or set, return null or handle as needed
     return null;
   }
+  
 
 
 
@@ -853,6 +902,33 @@ class TocSheet {
     } else {
       console.error("Could not get the range.  Check TOC contents range A1 notation: ", this.rangeContentsA1Notation);
     }
+  }
+
+  removeInvalidRows(range) {
+    range = range || this.getRangeContents();
+
+    if (!range) {
+      console.error("Could not find range to remove invalide rows.")
+      return
+    }
+
+    const rangeStartRow = range.getRow();
+    values = range.getRichTextValues();
+    const invalidRows = values.reduce((acc = [], row, rowIndex) => {
+      //Fist column, i = 0, should be a richTextValue that links to a sheet in the active spreadsheet
+      if (row.forEach(targetColumn => !this.isValidSheetLink(targetColumn[0]))) {
+        acc.push(rangeStartRow + rowIndex);
+      }
+      return acc;
+
+    }, []);
+
+    const sheet = range.getSheet();
+    for (let i = invalidRows.length - 1; i >= 0; i--) {
+      const invalidRow = invalidRows[i];
+      sheet.deleteRow(invalidRow)
+    }
+
   }
 
   setFrozenRows(num) {

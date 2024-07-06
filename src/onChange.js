@@ -4,6 +4,7 @@ function onChange(e) {
     const sheetId = propsStorage.load("tocSheetId");
     let myToc;
     let tocSheetDoesExist = false;
+    let activeRange;
 
     if (sheetId) {
         try {
@@ -20,7 +21,9 @@ function onChange(e) {
         console.log("changeType: ", e.changeType);
         onEdit(e, e.changeType);
 
+
         if (e.changeType) {
+            activeRange = spreadsheetUtil.getActive().getActiveSheet().getActiveRange();
             //updateContentRange(myToc);
             switch (e.changeType) {
                 case "INSERT_GRID":
@@ -41,7 +44,7 @@ function onChange(e) {
                     myToc.saveBackup();
                     break;
                 default: //"INSERT_COLUMN, REMOVE_COLUMN,  INSERT_ROW, REMOVE_ROW, OTHER, EDIT"
-                    handleSheetChange(myToc, sheetId, e);
+                    handleSheetChange(e, myToc, sheetId, activeRange);
                     break;
             }
         }
@@ -59,9 +62,9 @@ function handleGridChange(myToc, sheetId, changeType) {
     }
 }
 
-function handleSheetChange(myToc, sheetId, e) {
-    const tocChangeHandler = new SheetChangeHandler(myToc, sheetId);
-    tocChangeHandler.handleChange(e);
+function handleSheetChange(e, myToc, sheetId, activeRange) {
+    const tocChangeHandler = new SheetChangeHandler(e, myToc, sheetId, activeRange);
+    tocChangeHandler.handleChange();
 }
 
 function updateContentRange(myToc) {
