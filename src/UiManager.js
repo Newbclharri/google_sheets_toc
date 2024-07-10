@@ -1,14 +1,14 @@
-class UiUtil{
-  constructor(){
-    if(UiUtil.instance){
+class UiUtil {
+  constructor() {
+    if (UiUtil.instance) {
       return UiUtil.instance
     }
     this.uI = getSpreadsheetApp().getUi() || SpreadsheetApp.getUi();
     UiUtil.instance = this;
   }
 
-  static getInstance(){
-    if(!UiUtil.instance){
+  static getInstance() {
+    if (!UiUtil.instance) {
       return new UiUtil();
     }
     return UiUtil.instance;
@@ -18,65 +18,73 @@ class UiUtil{
     return this.uI.alert(message);
   }
 
-  createMenu(){
+  createMenu() {
     return this.uI.createAddonMenu()
       .addItem("Insert", "start")
       .addSeparator()
-      .addItem("Remove","confirmDelete")
+      .addItem("Remove", "confirmDelete")
       .addToUi();
-    }
+  }
 
-  confirmDelete(title, message){
+  confirmDelete(title, message) {
     const response = this.uI.alert(title, message, this.uI.ButtonSet.OK_CANCEL);
     if (response == this.uI.Button.OK) {
       return true;
-    }else{
+    } else {
       this.uI.alert('Deletion Cancelled');
-    }  
-      
-    
+    }
+
+
     return false;
   }
 }
 
-function start(){
+function start() {
   const scriptApp = getScriptApp(), spreadsheetUtil = SpreadsheetUtility.getInstance();
   const uI = spreadsheetUtil.getUi();
   const loaded = TocSheet.load();
-  if(loaded){
+  if (loaded) {
     TocSheet.setTocAsActiveSheet(loaded);
-  }else{
+  } else {
     const propsStor = new PropertiesServiceStorage();
+    const myToc = new TocSheet({}, spreadsheetUtil, propsStor);
     const triggerManager = TriggerManager.getInstance(scriptApp, spreadsheetUtil);
-    const myToc = new TocSheet({},spreadsheetUtil, propsStor);
+
+
     let propsToSave;
     myToc.initialize();
 
     console.log("From ui manager tocKey: ", myToc.key)
     propsToSave = [["tocSheetId", myToc.sheetId], [myToc.key, myToc.toJSON()], [myToc.backupKey, myToc.getBackUp()]];
     //////////INITIAL SAVE//////////////
-    for(let prop of propsToSave){
+    for (let prop of propsToSave) {
       const key = prop[0], value = prop[1];
       PropertiesServiceStorage.getInstance().save(key, value);
     }
     triggerManager.setTrigger(triggerManager.getEventType().ON_CHANGE, "onChange");
-  }  
+  }
 }
 
-function confirmDelete(){
+function confirmDelete() {
   const uI = UiUtil.getInstance()
-  const isConfirmed = uI.confirmDelete('Confirm Delete:','Delete item?');
-  if(isConfirmed){
+  const isConfirmed = uI.confirmDelete('Confirm Delete:', 'Delete item?');
+  if (isConfirmed) {
     const loaded = TocSheet.load();
-    if(loaded){
+    if (loaded) {
       const scriptApp = getScriptApp(), spreadsheetUtil = SpreadsheetUtility.getInstance();
       const triggerManager = TriggerManager.getInstance(scriptApp, spreadsheetUtil);
       const myToc = new TocSheet(loaded);
-      myToc.handleMenuSelectRemove(()=>{
+      
+      // Remove TOC sheet and onChange Trigger
+      myToc.handleMenuSelectRemove(() => {
+        // Callback function that removes onChange trigger after hangleMenuSeletRemove remove the TocSheet
         return triggerManager.deleteTrigger(triggerManager.getEventType().ON_CHANGE, "onChange");
       });
+
+      // Remove saved TOC states (sheetNames and Ids)
+      TocStateManager.deleteSavedState();
       uI.alert("deleted");
-    }else{
+    } else {
       uI.alert("No Table of Contents found.")
     }
   }

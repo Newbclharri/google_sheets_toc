@@ -39,6 +39,10 @@ class SpreadsheetUtility {
     this.spreadsheet.setNamedRange(name, range)
   }
 
+  removeNamedRange(name){
+    this.spreadsheet.removeNamedRange(name);
+  }
+
   getSheets() {
     return this.sheets;
   }
@@ -104,9 +108,8 @@ class SpreadsheetUtility {
 
   createSheetLinks(sheetIds, underline = false, bold = false) {
     //get all sheets from passed sheetIds
-    const sheets = [];
     const links = [];
-    let sheetUrl, linkStyle, link;
+    let link;
     sheetIds.forEach(id => {
       const sheet = this.getSheetById(id);
       if (sheet) {

@@ -3,6 +3,7 @@ function onChange(e) {
     const propsStorage = new PropertiesServiceStorage();
     const sheetId = propsStorage.load("tocSheetId");
     let myToc;
+    let contentLinksManager;
     let tocSheetDoesExist = false;
     let activeRange;
 
@@ -10,6 +11,8 @@ function onChange(e) {
         try {
             const loaded = TocSheet.load();
             myToc = new TocSheet(loaded, spreadsheetUtil, propsStorage);
+            const sheetLinks = myToc.getRangeContents().getRichTextValues();
+            contentLinksManager = new TocStateManager(sheetLinks);
             tocSheetDoesExist = myToc.doesExistSheet();
         } catch (err) {
             console.error("An error occured attempting to find the TOC sheet: ", err);
@@ -18,9 +21,10 @@ function onChange(e) {
 
     if (tocSheetDoesExist) {
         console.log("SHEET EXISTS, CAN DO WORK!");
-        console.log("changeType: ", e.changeType);
+        console.log("CHANGE TYPE @onChange: ", e.changeType);
         onEdit(e, e.changeType);
-
+        const rangeContents = myToc.getRangeContents();
+        const sheetLinks = rangeContents.getRichTextValues();
 
         if (e.changeType) {
             activeRange = spreadsheetUtil.getActive().getActiveSheet().getActiveRange();
@@ -28,6 +32,9 @@ function onChange(e) {
             switch (e.changeType) {
                 case "INSERT_GRID":
                     handleGridChange(myToc, sheetId, "INSERT_GRID");
+                    const links =  myToc.getRangeContents().getRichTextValues();
+                    contentLinksManager = new TocStateManager(links)
+                    contentLinksManager.updateState(links);
                     myToc.save();
                     myToc.saveBackup();
                     break;
@@ -39,17 +46,53 @@ function onChange(e) {
                 case "OTHER":
                     // getRenamedSheetIds(spreadsheetUtil, e.changeType, myToc);
                     handleRenames(e.changeType, myToc, spreadsheetUtil);
+                    handleSheetChange(e, myToc, sheetId, activeRange);
                     // handleSheetChange(myToc, sheetId, e);
                     myToc.save();
                     myToc.saveBackup();
+                case "EDIT":
+                    
                     break;
-                default: //"INSERT_COLUMN, REMOVE_COLUMN,  INSERT_ROW, REMOVE_ROW, OTHER, EDIT"
+                default: //"INSERT_COLUMN, REMOVE_COLUMN,  INSERT_ROW, REMOVE_ROW, EDIT"
                     handleSheetChange(e, myToc, sheetId, activeRange);
+
+                    myToc.save();
+                    myToc.saveBackup();
                     break;
             }
+            handleContentsChange(sheetLinks, rangeContents, myToc);
         }
     } else {
         console.log("SHEET DOES NOT EXIST. CAN'T DO WORK.");
+    }
+}
+
+/////////////////////////ONCHANGE HELPER FUNCTIONS//////////////////////////////
+function handleContentsChange(richTextValues, targetRange, myToc) {
+
+    const valuesManager = new TocStateManager(richTextValues);
+    valuesManager.logChanges();
+    if (valuesManager.hasStateChanged()) {
+        //   const previousRichTextValues = valuesManager.getPreviousRichTextValues();
+        //   const previousState = valuesManager.getPreviousState();
+        //   console.log("PREV: ", previousState, ":", Array.isArray(previousState));
+        //   const targetSheet = targetRange.getSheet();
+        //   const rangeToPaste = targetSheet.getRange(targetRange.getRow(), targetRange.getColumn(), previousState.length);
+        //   console.log("PREV STATE LENGTH: ", previousState.length)
+        //   targetRange.clear();
+        //   rangeToPaste.clear();
+        //   rangeToPaste.setRichTextValues(previousRichTextValues);
+        //   // Set new named range
+        //   valuesManager.setNamedRange( myToc.rangeContentsName, rangeToPaste);
+
+        valuesManager.restoreState();
+
+    }
+
+    valuesManager.logStates();
+    if (valuesManager.arraysAreSimilarButNotIdentical()) {
+        valuesManager.updateState(richTextValues);
+        console.log("NEW STATE STORED: ", valuesManager.getStoredState());
     }
 }
 
@@ -95,8 +138,8 @@ function handleRenames(changeType, myToc, spreadsheetUtil) {
             //////////////////////////IF TOC SHEET WAS RENAMED, UPDATE NAME/////////////////
 
             //Find sheet data if TOC sheet was renamed
-            const tocSheetId = myToc.loadTocSheetId();           
-        
+            const tocSheetId = myToc.loadTocSheetId();
+
             if (renamedSheetIds.some(sheetData => sheetData.id == tocSheetId)) {
                 const tocSheetRenameData = renamedSheetIds.find(sheetData => sheetData.id == tocSheetId)
                 console.log("tocSheetRenameData: ", tocSheetRenameData)
@@ -132,7 +175,7 @@ function handleRenames(changeType, myToc, spreadsheetUtil) {
                     const linkUrl = link.getLinkUrl();
 
                     //Extract the sheet id from the richtextvalue url
-                    const sheetIdFromLink = myToc.getSheetGIDFromRichText(linkUrl);
+                    const sheetIdFromLink = myToc.getSheetGIDFromRichTextUrl(linkUrl);
                     //Find the sheet link id that matches the sheet that has been renamed
 
 
@@ -185,6 +228,7 @@ function handleRenames(changeType, myToc, spreadsheetUtil) {
             if (renamedSheetIds.length) {
                 // console.log("RENAMED SHEETS: ", renamedSheetIds);
                 // console.log("myToc stored data by id: ", myToc.sheetDataById);
+                console.log("SHEETS THAT NEED RENAMING AT @getRenamedSheetIds: ", renamedSheetIds)
                 return renamedSheetIds;
             }
         }

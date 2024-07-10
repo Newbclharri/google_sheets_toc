@@ -1,5 +1,5 @@
 class SheetChangeHandler {
-    constructor(e, obj = {}, id, activeRange, headerRow, targetRangeRowStart) {
+    constructor(e, obj = {}, id, activeRange) {
         this.eventObject = e;
         this.changeType = e.changeType
         this.myToc = obj;
@@ -11,8 +11,10 @@ class SheetChangeHandler {
         this.uI = new UiUtil();
         this.rangeHeaderName = obj.rangeHeaderName;
         this.rangeContentsName = obj.rangeContentsName;
-        this.headerRow = headerRow || 1;
-        this.targetRangeRowStart = targetRangeRowStart || 2;
+        this.rangeContents = obj.getRangeContents();
+        this.headerRow = obj.getRangeHeader().getLastRow() || 1;
+        this.targetRangeRowStart = this.rangeContents.getRow() || 2;
+        this.targetRangeColumnStart = this.rangeContents.getColumn();
     }
 
 
@@ -33,18 +35,35 @@ class SheetChangeHandler {
                         console.log("USER CHANGED HEADER ROW")
                         this.removeExcessHeaderRows();
                     }
-                    this.updateContentRange(this.eventObject) //above cases may change the TOC named ranges (header range and contents range)
+
+                    if (this.wasShiftedDownContents()) {
+                        this.removeInvalidRowsAboveNamedRange()
+                    }
+
+                    // if (this.wasChangedContentRange()) {
+                    //     const activeRowStart = this.activeRange.getRow();
+                    //     const rangContentsRowStart = this.myToc.getRangeContents().getRow();
+                    //     if(activeRowStart < rangContentsRowStart){
+                    //         this.removeInvalidRowsAboveNamedRange();
+                    //     }else{
+                    //         this.removeInvalidRowsFromRange();
+                    //     }
+                    // }
+                    // this.updateContentRange(this.eventObject) //above cases may change the TOC named ranges (header range and contents range)
                     break;
                 case "OTHER": //tab is renamed
-                    this.handleRename();
+                    //this.handleRename();
+                    //this.removeInvalidRowsFromRange();
+                    if(this.wasShiftedDownContents()){
+                        this.removeInvalidRowsAboveNamedRange();
+                    }
+
                     break;
 
                 default:
                     console.log("SheetChangeHandler.js other changeTypes(FORMAT, EDIT): ", this.changeType)
             }
-            /////////////SAVE UPDATED PROPERTIES//////////////
-            this.myToc.save();
-            this.myToc.saveBackup();
+
         }
     }
 
@@ -89,16 +108,80 @@ class SheetChangeHandler {
         return updates;
     }
 
+    getActiveSheetId() {
+        return this.activeRange.getSheet().getSheetId();
+    }
+
     wasChangedHeaderRow() {
         try {
-            const activeSheetId = this.activeRange.getSheet().getSheetId();
-            if(activeSheetId == this.targetSheetId){
+            const activeSheetId = this.getActiveSheetId();
+            if (activeSheetId == this.targetSheetId) {
                 return this.activeRange.getRow() === this.headerRow;
             }
         } catch (err) {
             console.error("Error attempting to retrieve the header range", err.stack);
+            return false;
         }
     }
+
+    /**
+   * Detects a user change to the contents range
+   * in the TOC sheet
+   * @returns {Boolean}
+   */
+    wasChangedContentRange() {
+        try {
+            // Get the active sheet ID to localize user changes
+            const activeSheetId = this.getActiveSheetId();
+
+            // Determine if the change occurred in the TOC sheet
+            if (activeSheetId === this.targetSheetId) {
+                // Get the start and end rows of the active range
+                const startRow = this.activeRange.getRow();
+                const endRow = this.activeRange.getLastRow();
+
+                // Get the contents range to compare with the active range
+                const rangeContents = this.myToc.getRangeContents();
+                const rangeContentsEndRow = rangeContents.getLastRow();
+                console.log(`CONTENTS END ROW: ${rangeContentsEndRow}`);
+
+                // Check if the active range is within the contents range (excluding the header row)
+                if (startRow > this.headerRow && endRow <= rangeContentsEndRow) {
+                    return true;
+                }
+            }
+
+            // Return false if the change did not occur in the specified range
+            return false;
+
+        } catch (err) {
+            // Log an error message if an exception occurs
+            console.error("Error retrieving the contents range:", err);
+            return false; // Ensure a boolean is always returned
+        }
+    }
+
+    wasShiftedDownContents() {
+        if (this.targetRangeRowStart > this.headerRow + 1) {
+            return true;
+        }
+
+        return false;
+
+    }
+
+    removeInvalidRowsFromRange() {
+        const range = this.myToc.getRangeContents();
+        this.myToc.removeInvalidRowsFromRange(range);
+    }
+
+    removeInvalidRowsAboveNamedRange() {
+        const headerRow = this.headerRow
+        const sheet = this.rangeContents.getSheet();
+        const rangeToClean = sheet.getRange(headerRow + 1, this.targetRangeColumnStart, this.targetRangeRowStart);
+        this.myToc.removeInvalidRowsFromRange(rangeToClean);
+    }
+
 
     removeExcessHeaderRows() {
         try {

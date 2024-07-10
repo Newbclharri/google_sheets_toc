@@ -27,62 +27,88 @@ class GridChangeHandler {
     }
 
     handleUserInsertsSheet() {
-        const activeSheetId = this.ssUtil.getActive().getActiveSheet().getSheetId();
+
+        let newContentIdsToAddToTocSheet
 
         try {
             //logic
             //currentContentIds
             const currContentIds = this.myToc.fetchSheetIdsNotEqualTo(this.sheetId);
-            console.log("CURRENT: ", currContentIds)
+            console.log("CURRENT INCLUDES 0: ", currContentIds, currContentIds.includes(0));
+            currContentIds.forEach(id => console.log(`in currIds: ${id} : ${typeof id}`,))
+            
+
             //previousContentIds
-            const initialContentIds = this.getContentIdsFromTocSheet() || this.myToc.getContentIds;
-            console.log("INITIAL: ", initialContentIds)
+            const storedContentIds = this.myToc.getStoredContentIds() || this.myToc.getContentIds;
+            console.log("INITIAL: ", storedContentIds);
+
+            // Get a list of content Ids already on the TOC sheet
+            const contentIdsOnTocSheet = this.getContentIdsFromTocSheet();
+            console.log(`IDS ON SHEET: ${contentIdsOnTocSheet}`)
+            contentIdsOnTocSheet.forEach(id => console.log(`ID TYPES IN contenteIdsOnSheet: ${id}: TYPE: ${typeof id}`))
+            console.log("INCLUDES 0: ",contentIdsOnTocSheet.includes(0))
+
             //insertedTabs
-            const insertedContentIds = this.findDifferences(currContentIds, initialContentIds);
-            console.log("INSERTED CONTENT IDS: ", insertedContentIds)
-            removeTocSheetIdFromInsertedIds(insertedContentIds, this.sheetId);
+            newContentIdsToAddToTocSheet = this.findDifferences(currContentIds, contentIdsOnTocSheet);
+            newContentIdsToAddToTocSheet.forEach(id => console.log(`ID TYPES IN newContentIds: ${id}: TYPE: ${typeof id}`))
 
-            // Check if insertedContentIds exists and has length
-            if (!insertedContentIds.length) {
-                throw new Error('No content IDs to process.');
+            const uniqueAndValidIds = newContentIdsToAddToTocSheet.filter(id =>{
+
+                console.log(`ID ${id} is included on the toc sheet: `, contentIdsOnTocSheet.includes(id))
+                console.log(`ID: ${id} ${typeof id}`)
+             return this.myToc.isValidSheetId(id) && !contentIdsOnTocSheet.includes(id)
+            });
+
+            // Filter already stored ids
+            console.log("UNIQUE CONTENT IDS: ", uniqueAndValidIds);
+
+            removeTocSheetIdFromInsertedIds(uniqueAndValidIds, this.sheetId);
+
+            if (uniqueAndValidIds && uniqueAndValidIds.length) {
+
+                // Create sheet links
+                const links = this.myToc.createSheetLinks(uniqueAndValidIds);
+
+                // Check if links were created successfully
+                if (!links.length) {
+                    console.warn('No links were created.');
+                }
+
+                // Get the named range
+                const range = this.myToc.getRangeContents();
+                if (!range) {
+                    throw new Error('Could not get contents range.');
+                }
+
+                console.log("RANGE CONTENTS START ROW: ", range.getRow());
+                const rangeStartRow = range.getRow();
+
+                // Get the sheet and range details
+                const sheet = range.getSheet();
+                const rangeStartColumn = range.getColumn();
+
+                // Shift cells down to insert new sheet links at the top of the range            
+                const rangetoInsertCells = sheet.getRange(rangeStartRow, rangeStartColumn, links.length, sheet.getLastColumn());
+                this.shiftCellsDown(rangetoInsertCells);
+
+                // Define the range to paste the links
+                const headerRow = this.myToc.getRangeHeader().getLastRow();
+                const rangeToPaste = sheet.getRange(headerRow + 1, rangeStartColumn, links.length, 1);
+                rangeToPaste.setRichTextValues(links);
+
+                // Call additional functions if necessary
+                this.myToc.setSheetDataByIdPropertiesFromLinks(links)
+                // updateNamedRange();
+                const newRange = sheet.getRange(rangeStartRow, rangeStartColumn, range.getNumRows() + rangeToPaste.getNumRows());
+                this.updateNamedRange(newRange);
+
+                // updateContentIds();
+                this.myToc.setContentIds(currContentIds);
+
+                // updateTitles();
+                this.myToc.updateTitlesByIds(uniqueAndValidIds);
             }
 
-            // Create sheet links
-            const links = this.myToc.createSheetLinks(insertedContentIds);
-
-            // Check if links were created successfully
-            if (!links.length) {
-                throw new Error('No links were created.');
-            }
-
-            // Get the named range
-            const range = this.myToc.getRangeContents();
-            if (!range) {
-                throw new Error('Could not get contents range.');
-            }
-
-            // Get the sheet and range details
-            const sheet = range.getSheet();
-            const rangeStartColumn = range.getColumn();
-
-            //sheft cells down to insert new sheet links at the top of the range            
-            const rangetoInsertCells = sheet.getRange(range.getRow(), rangeStartColumn, links.length, 1);
-            this.shiftCellsDown(rangetoInsertCells);
-
-            // Define the range to paste the links
-            const rangeToPaste = sheet.getRange(2, rangeStartColumn, links.length, 1);
-            rangeToPaste.setRichTextValues(links);
-
-            // Call additional functions if necessary
-            this.myToc.setSheetDataByIdPropertiesFromLinks(links)
-            // updateNamedRangeRows();
-            this.updateNamedRangeRows()
-
-            // updateContentIds();
-            this.myToc.setContentIds(currContentIds);
-
-            // updateTitles();
-            this.myToc.updateTitlesByIds(insertedContentIds);
 
             //save TOC state
             //this.myToc.save();
@@ -90,6 +116,12 @@ class GridChangeHandler {
 
         } catch (err) {
             console.error('Error processing inserted content:', err.stack);
+
+            // if(uniqueAndValidIds && uniqueAndValidIds.length){
+            //     uniqueAndValidIds.forEach(id =>{ 
+            //         this.myToc.addSheetDataById(id);
+            //     })
+            // }
             return; // Early return on error
         }
 
@@ -120,114 +152,129 @@ class GridChangeHandler {
 
     }
 
-    
+
 
     handleUserDeletesSheet() {
         try {
+            //Sheet Ids currently on TOC sheet
+            const contentIdsOnTocSheet = this.getContentIdsFromTocSheet();
+            console.log("CONTENT IDS ON TOC SHEET: ", contentIdsOnTocSheet)
+
             // Get current list of sheet IDs
-            const currSheetIds = this.myToc.fetchSheetIds(); // Returned data is type number
-    
+            //const currSheetIds = this.myToc.fetchSheetIds(); // Returned data is type number
+
+
             // Fetch stored sheet data
             const storedSheetData = this.myToc.getSheetDataById();
-    
+
             // Convert stored sheet IDs from string to number
-            const storedSheetIds = Object.keys(storedSheetData).map(Number);
-    
+            //const storedSheetIds = Object.keys(storedSheetData).map(ele => Number(ele));
+
             // Find differences between current and stored sheet IDs
-            const contentsToDeleteByIds = this.findDifferences(currSheetIds, storedSheetIds);
-            console.log(`DIFFERENCES BEFORE: ${contentsToDeleteByIds}`);
-    
+            const contentsToDeleteByIds = contentIdsOnTocSheet.filter(id => {
+                console.log(id, "IS INVALID: ", !this.myToc.isValidSheetId(id));
+                return !this.myToc.isValidSheetId(id)
+            });
+            contentsToDeleteByIds
+            console.log(`CONTENT IDS TO DELETE: ${contentsToDeleteByIds}`);
+
             // Get the range of content
             const range = this.myToc.getRangeContents();
-    
+
             if (!range) {
                 console.error("Could not get the range to remove contents.");
                 return;
             }
-    
+
             const startRow = range.getRow();
             const sheet = range.getSheet();
             const contentNames = range.getValues().map(row => row[0]);
             const contentLinks = range.getRichTextValues().map(row => row[0]);
-    
+
             // Accumulate rows to delete using .reduce
             const rowsToDelete = contentLinks.reduce((rows, link, rowIndex) => {
                 const linkUrl = link.getLinkUrl();
                 const linkName = link.getText();
-                const linkId = linkUrl ? this.myToc.getSheetGIDFromRichText(linkUrl) : null;
-    
+                const linkId = linkUrl ? this.myToc.getSheetGIDFromRichTextUrl(linkUrl) : null;
+
                 // Check for deleted sheet ID or name
-                const deletedSheetId = contentsToDeleteByIds.find(id => id === linkId || storedSheetData[id].name === linkName);
+
+                const sheetToDeleteId = contentsToDeleteByIds.find(id => {
+
+
+                    return id === linkId || storedSheetData[id].name === linkName
+
+                });
 
                 // Remove deleted sheet ID from stored sheet data object
-                delete storedSheetData[deletedSheetId];
-                
-                if (deletedSheetId !== undefined) {
+                //delete storedSheetData[deletedSheetId];
+
+                if (sheetToDeleteId !== undefined && !this.myToc.isValidSheetId(sheetToDeleteId)) {
                     rows.push(startRow + rowIndex);
-                    
+
                     // Remeve deleted sheet id from array processing
-                    const index = contentsToDeleteByIds.indexOf(deletedSheetId);
+                    const index = contentsToDeleteByIds.indexOf(sheetToDeleteId);
                     if (index > -1) {
                         contentsToDeleteByIds.splice(index, 1);
                     }
                 }
                 return rows;
             }, []);
-            
+
             // Delete sheet links from bottom of range to the top most row:
             // Avoids index shifting as rows are deleted
             for (let i = rowsToDelete.length - 1; i >= 0; i--) {
                 sheet.deleteRow(rowsToDelete[i]);
             }
-    
+
         } catch (error) {
             console.error('Error handling user removes content tab:', error.stack);
         }
     }
-    
+
 
 
     getContentIdsFromTocSheet() {
-        //user could potentially change the range name
         let rangeContents;
         try {
-            //get TOC contents
+            // Get TOC contents
             rangeContents = this.myToc.getRangeContents();
-            const sheetNames = rangeContents.getValues().filter((row, index) => row[0] !== "").map(row => row[0])
-            // console.log("SHEETNAMES: ", sheetNames)
 
-            //Get sheetIds for each value (sheet / tab names)
-            const contentSheetIds = sheetNames.map(sheetName => {
-                const sheet = this.ssUtil.getSheetByName(sheetName);
-                if (sheet) {
-                    const id = sheet.getSheetId();
-                    return !isNaN(id) ? id : null;
-                }
-                return null;
-            }).filter(id => id !== null);;
+            // Get IDs from content sheet links
+            const idsOnTocSheet = rangeContents.getRichTextValues()
+                // Flatten the 2D array
+                .flatMap(row => row)
+                // Map ID from link to the 1D array
+                .map(link => {
+                    const url = link.getLinkUrl();
+                    if (url) {
+                        const id = this.myToc.getSheetGIDFromRichTextUrl(url);
+                        return !isNaN(id) ? id : null;
+                    }
+                    return null;
+                })
+                // Filter out null values
+                .filter(id => id !== null);
 
-            return contentSheetIds;
+            return idsOnTocSheet;
+
         } catch (err) {
             console.error("Error in getContentIdsFromTocSheet:", err.stack);
         }
     }
+
 
     findDifferences(arry1, arry2) {
         return arry1
             .filter(element => !arry2.includes(element))
             .concat(arry2.filter(element => !arry1.includes(element)));
     }
-    updateNamedRangeRows() {
-        const range = this.myToc.getRangeContents();
-        if (!range) {
-            console.log("Could not get the range");
-            return;
-        }
-
+    updateNamedRange(newRange) {
         try {
-            //named range details
-            console.log("NEW LAST ROW: ", range.getLastRow())
-            const a1Notation = range.getA1Notation();
+            // Set named range
+            this.myToc.setNamedRange(this.myToc.rangeContentsName, newRange)
+            // Update range a1notation
+            const a1Notation = newRange.getA1Notation();
             this.myToc.rangeContentsA1Notation = a1Notation;
             console.log(`New range updated successfully: ${a1Notation}`);
         } catch (err) {
