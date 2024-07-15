@@ -47,17 +47,17 @@ class TocStateManager extends TocSheet {
     static getSheetLinksKey() {
         return "sheetLinksState";
     }
-    
+
     static getStaticIdsKey() {
         return "sheetLinkIds";
     }
 
-    static getScriptProps(){
+    static getScriptProps() {
         return getPropsServ().getScriptProperties();
     }
 
 
-    
+
     /**
      * Deletes the saved state and ids from the script properties.
      * 
@@ -69,7 +69,7 @@ class TocStateManager extends TocSheet {
      * 
      * TocStateManager.deleteSavedState();
     */
-    
+
     static deleteSavedState() {
         const properties = TocStateManager.getScriptProps();
         properties.deleteProperty(TocStateManager.getSheetLinksKey()); //Use static key
@@ -109,7 +109,7 @@ class TocStateManager extends TocSheet {
         return this.arraysAreSimilar() && !this.arraysAreIdentical();
     }
 
-    everyArrayElementHasALink(links = this.currentRichTextValues){
+    everyArrayElementHasALink(links = this.currentRichTextValues) {
         links = this.isArrayOfArrays(links) ? links.flatMap(ele => ele) : links;
         return links.every(ele => ele.getLinkUrl);
 
@@ -148,7 +148,7 @@ class TocStateManager extends TocSheet {
             throw err; // Re-throw the error to propagate it upwards if necessary
         }
     }
-    
+
     /**
      * Determines if both the previous and current array
      * have the same length and elements
@@ -162,7 +162,7 @@ class TocStateManager extends TocSheet {
         }
     }
 
-    restoreState(previousLinks = this.getPreviousRichTextValues()){
+    restoreState(previousLinks = this.getPreviousRichTextValues()) {
         // Get the range to paste previous links
         const currentRange = this.getRangeByName("TOC");
         const targetSheet = currentRange.getSheet();
@@ -187,17 +187,22 @@ class TocStateManager extends TocSheet {
     }
 
     getPreviousRichTextValues() {
-        // Get previous Ids to make rich text values
-        const previousIds = this.getPreviousIds();
+        try {
+            // Get previous Ids to make rich text values
+            const previousIds = this.getPreviousIds();
 
-        // Convert Ids to rich text value sheet links
-        const getPreviousRichTextValues = this.createSheetLinks(previousIds);
+            // Convert Ids to rich text value sheet links
+            const getPreviousRichTextValues = this.createSheetLinks(previousIds);
 
-        // Ensure that the rich text values are in an array of arrays
-        if (!this.isArrayOfArrays(getPreviousRichTextValues)) {
-            return getPreviousRichTextValues.map(value => [value]);
+            // Ensure that the rich text values are in an array of arrays
+            if (!this.isArrayOfArrays(getPreviousRichTextValues)) {
+                return getPreviousRichTextValues.map(value => [value]);
+            }
+            return getPreviousRichTextValues;
+        } catch (err) {
+            console.error("TOC state compromised.  Previous TOC restored: ", err.stack);
+            this.restoreState();
         }
-        return getPreviousRichTextValues;
     }
 
     getCurrentState() {

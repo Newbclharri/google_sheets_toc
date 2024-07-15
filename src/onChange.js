@@ -11,8 +11,8 @@ function onChange(e) {
         try {
             const loaded = TocSheet.load();
             myToc = new TocSheet(loaded, spreadsheetUtil, propsStorage);
-            const sheetLinks = myToc.getRangeContents().getRichTextValues();
-            contentLinksManager = new TocStateManager(sheetLinks);
+            // const sheetLinks = myToc.getRangeContents().getRichTextValues();
+            // contentLinksManager = new TocStateManager(sheetLinks);
             tocSheetDoesExist = myToc.doesExistSheet();
         } catch (err) {
             console.error("An error occured attempting to find the TOC sheet: ", err);
@@ -24,15 +24,18 @@ function onChange(e) {
         console.log("CHANGE TYPE @onChange: ", e.changeType);
         onEdit(e, e.changeType);
         const rangeContents = myToc.getRangeContents();
-        const sheetLinks = rangeContents.getRichTextValues();
+        // const sheetLinks = rangeContents.getRichTextValues();
 
         if (e.changeType) {
             activeRange = spreadsheetUtil.getActive().getActiveSheet().getActiveRange();
             //updateContentRange(myToc);
+            let links = myToc.getRangeContents().getRichTextValues();
+            ;
+            links.flatMap(ele => ele).forEach(link => console.log("URL AFTER REMOVE GRID: ", link.getLinkUrl()))
             switch (e.changeType) {
                 case "INSERT_GRID":
                     handleGridChange(myToc, sheetId, "INSERT_GRID");
-                    const links =  myToc.getRangeContents().getRichTextValues();
+                    links = myToc.getRangeContents().getRichTextValues();
                     contentLinksManager = new TocStateManager(links)
                     contentLinksManager.updateState(links);
                     myToc.save();
@@ -40,6 +43,9 @@ function onChange(e) {
                     break;
                 case "REMOVE_GRID":
                     handleGridChange(myToc, sheetId, "REMOVE_GRID");
+                    links = myToc.getRangeContents().getRichTextValues();
+                    contentLinksManager = new TocStateManager(links);
+                    contentLinksManager.updateState(links);
                     myToc.save();
                     myToc.saveBackup();
                     break;
@@ -51,7 +57,7 @@ function onChange(e) {
                     myToc.save();
                     myToc.saveBackup();
                 case "EDIT":
-                    
+
                     break;
                 default: //"INSERT_COLUMN, REMOVE_COLUMN,  INSERT_ROW, REMOVE_ROW, EDIT"
                     handleSheetChange(e, myToc, sheetId, activeRange);
@@ -60,7 +66,7 @@ function onChange(e) {
                     myToc.saveBackup();
                     break;
             }
-            handleContentsChange(sheetLinks, rangeContents, myToc);
+            handleContentsChange(links, rangeContents, myToc);
         }
     } else {
         console.log("SHEET DOES NOT EXIST. CAN'T DO WORK.");
