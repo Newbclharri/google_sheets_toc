@@ -19,8 +19,8 @@ class UiUtil {
   }
 
   createMenu() {
-    return this.uI.createAddonMenu()
-      .addItem("Insert", "start")
+    return this.uI.createMenu('Table of Contents')
+      .addItem("Go To", "start")
       .addSeparator()
       .addItem("Remove", "confirmDelete")
       .addToUi();
