@@ -29,9 +29,9 @@ function onChange(e) {
         if (e.changeType) {
             activeRange = spreadsheetUtil.getActive().getActiveSheet().getActiveRange();
             //updateContentRange(myToc);
-            let links = myToc.getRangeContents().getRichTextValues();
-            ;
-            links.flatMap(ele => ele).forEach(link => console.log("URL AFTER REMOVE GRID: ", link.getLinkUrl()))
+            let links = rangeContents.getRichTextValues();
+            console.log("TOTAL LINKS: ", links.length);
+            links.flatMap(ele => ele).forEach(link => console.log("Sheet Names: ", link.getText()))
             switch (e.changeType) {
                 case "INSERT_GRID":
                     handleGridChange(myToc, sheetId, "INSERT_GRID");
@@ -131,12 +131,12 @@ function updateContentRange(myToc) {
 
 
 
-function handleRenames(changeType, myToc, spreadsheetUtil) {
+function handleRenames(changeType, myToc,spreadsheetUtil) {
     try {
         const renamedSheetIds = getRenamedSheetIds(changeType, myToc, spreadsheetUtil);
         const rangeContents = myToc.getRangeContents();
         const storedSheetData = myToc.sheetDataById;
-        //TOC sheet
+        // Get the TOC sheet
         const sheet = rangeContents.getSheet();
         let newLink;
 
@@ -169,6 +169,7 @@ function handleRenames(changeType, myToc, spreadsheetUtil) {
             console.log("RENAMED SHEETIDS: AFTER: ", renamedSheetIds)
 
             //Get rich text values from target TOC sheet
+            //flatten the 2d array for easier processing
             const links = rangeContents.getRichTextValues().map(row => row[0]);
             //Was having trouble with the index, so opted to use for loops instead of higher order functions
             //to update sheet link names for renamed sheets
@@ -205,6 +206,11 @@ function handleRenames(changeType, myToc, spreadsheetUtil) {
                 }
             }
         }
+
+        ///////////////AFTER RENAMING TARGET SHEET LINKS, UPDATE TOC SHEET LINKS STATE/////////////
+        const links = myToc.getRangeContents().getRichTextValues()
+        const contentLinksStateManager = new TocStateManager(links);
+        contentLinksStateManager.updateState(links);
     } catch (err) {
         console.error("Problem setting link", err.stack)
     }

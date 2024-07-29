@@ -19,7 +19,7 @@ class UiUtil {
   }
 
   createMenu() {
-    return this.uI.createMenu('Table of Contents')
+    return this.uI.createMenu("Table of Contents")
       .addItem("Go To", "start")
       .addSeparator()
       .addItem("Remove", "confirmDelete")
